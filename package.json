@@ -9,7 +9,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
-    "backtest": "ts-node src/scripts/backtest.ts"
+    "backtest": "ts-node src/scripts/backtest.ts",
+    "start:prod": "node start-production.mjs"
   },
   "keywords": [
     "trading",

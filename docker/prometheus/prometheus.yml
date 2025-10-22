@@ -1,0 +1,87 @@
+# =============================================================================
+# AI Trading Platform - Prometheus Configuration
+# Monitoring for Phase 2.4 Multi-Exchange Expansion
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'ai-trading-platform'
+    environment: 'production'
+
+# Rule files
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+      # You can add alertmanager configuration here
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # AI Trading Platform Health Server
+  - job_name: 'ai-trading-platform'
+    static_configs:
+      - targets: ['trading-app:3001']
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    scrape_timeout: 10s
+    params:
+      format: ['prometheus']
+
+  # Node Exporter (if added)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+
+  # PostgreSQL Exporter (if added)
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+
+  # Redis Exporter (if added)
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+
+  # Nginx Exporter (if nginx is enabled)
+  - job_name: 'nginx-exporter'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Docker Container Metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+# Remote write configuration (optional)
+# remote_write:
+#   - url: "http://your-remote-storage/api/v1/write"
+#     basic_auth:
+#       username: user
+#       password: pass
+
+# Storage configuration
+storage:
+  tsdb:
+    path: /prometheus
+    retention.time: 200h
+    retention.size: 10GB

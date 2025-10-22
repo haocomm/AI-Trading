@@ -8,37 +8,32 @@ const axios_1 = __importDefault(require("axios"));
 const config_1 = require("@/config");
 const logger_1 = require("@/utils/logger");
 const database_1 = require("@/models/database");
+const multi_ai_service_1 = require("./multi-ai.service");
+const prompt_engineering_service_1 = require("./prompt-engineering.service");
+const cost_optimization_service_1 = require("./cost-optimization.service");
 class AIService {
     constructor() {
         this.geminiApiKey = config_1.aiConfig.gemini.apiKey;
         this.model = config_1.aiConfig.gemini.model;
+        this.useMultiProvider = config_1.aiConfig.ensemble.enabled && this.hasValidMultiProviderConfig();
         if (!this.geminiApiKey) {
             throw new Error('Gemini API key is required');
+        }
+        if (this.useMultiProvider) {
+            this.initializeMultiProviderServices();
         }
     }
     async generateTradingSignal(symbol, marketData) {
         try {
-            const prompt = this.buildTradingPrompt(symbol, marketData);
-            const startTime = Date.now();
-            const response = await this.callGeminiAPI(prompt);
-            const responseTime = Date.now() - startTime;
-            logger_1.tradingLogger.apiCall('gemini', 'generateTradingSignal', true, responseTime);
-            const signal = this.parseAIResponse(response.data, symbol, marketData.currentPrice);
-            database_1.db.insertAIDecision({
-                symbol,
-                action: signal.action,
-                confidence: signal.confidence,
-                reasoning: signal.reasoning,
-                timestamp: Date.now(),
-                executed: false,
-                model: this.model,
-                input_data: JSON.stringify(marketData),
-            });
-            logger_1.tradingLogger.aiDecision(symbol, signal.action, signal.confidence, signal.reasoning);
-            return signal;
+            if (this.useMultiProvider && this.multiAIService) {
+                return this.generateMultiProviderSignal(symbol, marketData);
+            }
+            else {
+                return this.generateGeminiSignal(symbol, marketData);
+            }
         }
         catch (error) {
-            logger_1.tradingLogger.apiCall('gemini', 'generateTradingSignal', false, undefined, error instanceof Error ? error.message : 'Unknown error');
+            logger_1.tradingLogger.apiCall('AI', 'generateTradingSignal', false, undefined, error instanceof Error ? error.message : 'Unknown error');
             (0, logger_1.logError)(error instanceof Error ? error : new Error('AI signal generation failed'), { symbol, marketData });
             return {
                 action: 'HOLD',
@@ -49,8 +44,84 @@ class AIService {
                 takeProfit: marketData.currentPrice * 1.06,
                 positionSize: 0,
                 riskReward: 0,
+                provider: 'gemini',
+                model: this.model,
             };
         }
+    }
+    async generateMultiProviderSignal(symbol, marketData) {
+        if (!this.multiAIService || !this.promptEngineering) {
+            throw new Error('Multi-provider services not initialized');
+        }
+        const startTime = Date.now();
+        try {
+            const context = this.createDynamicContext(marketData);
+            const prompt = this.promptEngineering.generateDynamicPrompt('trading_signal', {
+                symbol,
+                marketData: JSON.stringify(marketData, null, 2)
+            }, context);
+            const request = {
+                prompt,
+                temperature: 0.3,
+                maxTokens: 1024,
+                metadata: {
+                    type: 'trading_signal',
+                    symbol,
+                    context,
+                    timestamp: Date.now()
+                }
+            };
+            const result = await this.multiAIService.generateSignal(symbol, marketData, {
+                useEnsemble: true,
+                useCache: config_1.aiConfig.caching.enabled,
+                priority: 'MEDIUM'
+            });
+            let signal;
+            if ('action' in result) {
+                signal = this.convertEnsembleToTradingSignal(result);
+            }
+            else {
+                signal = this.parseAIResponse(result, symbol, marketData.currentPrice);
+            }
+            database_1.db.insertAIDecision({
+                symbol,
+                action: signal.action,
+                confidence: signal.confidence,
+                reasoning: signal.reasoning,
+                timestamp: Date.now(),
+                executed: false,
+                model: signal.model || 'ensemble',
+                input_data: JSON.stringify({ marketData, context }),
+            });
+            const responseTime = Date.now() - startTime;
+            logger_1.tradingLogger.aiDecision(symbol, signal.action, signal.confidence, signal.reasoning);
+            logger_1.tradingLogger.apiCall('MultiAI', 'generateTradingSignal', true, responseTime, `Provider: ${signal.model}, Ensemble: ${'action' in result}`);
+            return signal;
+        }
+        catch (error) {
+            logger_1.tradingLogger.apiCall('MultiAI', 'fallbackToSingleProvider', true, 0, error instanceof Error ? error.message : 'Unknown error');
+            return this.generateGeminiSignal(symbol, marketData);
+        }
+    }
+    async generateGeminiSignal(symbol, marketData) {
+        const prompt = this.buildTradingPrompt(symbol, marketData);
+        const startTime = Date.now();
+        const response = await this.callGeminiAPI(prompt);
+        const responseTime = Date.now() - startTime;
+        logger_1.tradingLogger.apiCall('gemini', 'generateTradingSignal', true, responseTime);
+        const signal = this.parseAIResponse(response.data, symbol, marketData.currentPrice);
+        database_1.db.insertAIDecision({
+            symbol,
+            action: signal.action,
+            confidence: signal.confidence,
+            reasoning: signal.reasoning,
+            timestamp: Date.now(),
+            executed: false,
+            model: this.model,
+            input_data: JSON.stringify(marketData),
+        });
+        logger_1.tradingLogger.aiDecision(symbol, signal.action, signal.confidence, signal.reasoning);
+        return signal;
     }
     buildTradingPrompt(symbol, marketData) {
         return `You are an expert cryptocurrency trading AI specializing in technical analysis and risk management.
@@ -143,6 +214,8 @@ CRITICAL: Focus on risk management and preserve capital. High confidence (>0.8) 
                 takeProfit: currentPrice * (1 + takeProfitPercentage),
                 positionSize,
                 riskReward: takeProfitPercentage / stopLossPercentage,
+                provider: 'gemini',
+                model: this.model,
             };
         }
         catch (error) {
@@ -156,6 +229,8 @@ CRITICAL: Focus on risk management and preserve capital. High confidence (>0.8) 
                 takeProfit: currentPrice * 1.06,
                 positionSize: 0,
                 riskReward: 0,
+                provider: 'gemini',
+                model: this.model,
             };
         }
     }
@@ -242,7 +317,7 @@ CRITICAL: Focus on risk management and preserve capital. High confidence (>0.8) 
     }
     async updateDecisionExecution(decisionId, executed, result) {
         try {
-            logger_1.tradingLogger.aiDecision('UNKNOWN', executed ? 'EXECUTED' : 'SKIPPED', 1, `Decision ${decisionId} execution updated`);
+            logger_1.tradingLogger.aiDecision('UNKNOWN', 'HOLD', 1, `Decision ${decisionId} ${executed ? 'EXECUTED' : 'SKIPPED'}`);
         }
         catch (error) {
             (0, logger_1.logError)(error instanceof Error ? error : new Error('Failed to update decision execution'), { decisionId, executed, result });
@@ -250,12 +325,22 @@ CRITICAL: Focus on risk management and preserve capital. High confidence (>0.8) 
     }
     async healthCheck() {
         try {
-            const testPrompt = "Respond with: 'AI service is healthy'";
-            const response = await this.callGeminiAPI(testPrompt);
+            const geminiHealthy = await this.checkGeminiHealth();
+            let multiProviderStatus = { enabled: this.useMultiProvider };
+            if (this.useMultiProvider && this.multiAIService) {
+                const providerHealth = await this.multiAIService.performHealthCheck();
+                const cacheStats = this.multiAIService.getCacheStats();
+                multiProviderStatus = {
+                    enabled: true,
+                    providers: providerHealth,
+                    cacheStats
+                };
+            }
             return {
-                status: response.candidates && response.candidates.length > 0 ? 'healthy' : 'unhealthy',
+                status: geminiHealthy ? 'healthy' : 'unhealthy',
                 model: this.model,
                 lastCheck: new Date().toISOString(),
+                multiProvider: multiProviderStatus
             };
         }
         catch (error) {
@@ -264,6 +349,206 @@ CRITICAL: Focus on risk management and preserve capital. High confidence (>0.8) 
                 model: this.model,
                 lastCheck: new Date().toISOString(),
             };
+        }
+    }
+    async getAIMetrics() {
+        const metrics = {
+            gemini: {
+                status: await this.checkGeminiHealth(),
+                model: this.model
+            },
+            performance: {
+                totalRequests: 0,
+                successRate: 0,
+                averageResponseTime: 0,
+                dailyCost: 0
+            }
+        };
+        if (this.multiAIService && this.useMultiProvider) {
+            const providerMetrics = await this.multiAIService.getAllProviderMetrics();
+            const cacheStats = this.multiAIService.getCacheStats();
+            metrics.multiProvider = {
+                providers: providerMetrics,
+                cache: cacheStats,
+                cost: this.costOptimization?.getCostMetrics() || null
+            };
+        }
+        return metrics;
+    }
+    hasValidMultiProviderConfig() {
+        const { providers } = config_1.aiConfig;
+        return !!(providers.openai.apiKey || providers.claude.apiKey || providers.custom.apiKey);
+    }
+    initializeMultiProviderServices() {
+        try {
+            const providerConfigs = {};
+            if (config_1.aiConfig.providers.openai.apiKey) {
+                providerConfigs.openai = {
+                    name: 'OpenAI',
+                    enabled: true,
+                    apiKey: config_1.aiConfig.providers.openai.apiKey,
+                    models: config_1.aiConfig.providers.openai.models,
+                    defaultModel: config_1.aiConfig.providers.openai.defaultModel,
+                    maxTokens: 2048,
+                    temperature: 0.3,
+                    timeout: 30000,
+                    rateLimit: {
+                        requestsPerMinute: 60,
+                        tokensPerMinute: 90000
+                    },
+                    pricing: {
+                        inputTokenCost: 0.00001,
+                        outputTokenCost: 0.00003
+                    },
+                    weights: {
+                        accuracy: 0.4,
+                        speed: 0.3,
+                        cost: 0.3
+                    }
+                };
+            }
+            if (config_1.aiConfig.providers.claude.apiKey) {
+                providerConfigs.claude = {
+                    name: 'Claude',
+                    enabled: true,
+                    apiKey: config_1.aiConfig.providers.claude.apiKey,
+                    models: config_1.aiConfig.providers.claude.models,
+                    defaultModel: config_1.aiConfig.providers.claude.defaultModel,
+                    maxTokens: 2048,
+                    temperature: 0.3,
+                    timeout: 30000,
+                    rateLimit: {
+                        requestsPerMinute: 50,
+                        tokensPerMinute: 40000
+                    },
+                    pricing: {
+                        inputTokenCost: 0.000008,
+                        outputTokenCost: 0.000024
+                    },
+                    weights: {
+                        accuracy: 0.5,
+                        speed: 0.3,
+                        cost: 0.2
+                    }
+                };
+            }
+            if (config_1.aiConfig.providers.custom.apiKey) {
+                providerConfigs.custom = {
+                    name: 'Custom',
+                    enabled: true,
+                    apiKey: config_1.aiConfig.providers.custom.apiKey || 'dummy-key',
+                    baseUrl: config_1.aiConfig.providers.custom.baseUrl,
+                    models: config_1.aiConfig.providers.custom.models,
+                    defaultModel: config_1.aiConfig.providers.custom.defaultModel,
+                    maxTokens: 2048,
+                    temperature: 0.3,
+                    timeout: 30000,
+                    rateLimit: {
+                        requestsPerMinute: 100,
+                        tokensPerMinute: 100000
+                    },
+                    pricing: {
+                        inputTokenCost: 0.000005,
+                        outputTokenCost: 0.000015
+                    },
+                    weights: {
+                        accuracy: 0.3,
+                        speed: 0.4,
+                        cost: 0.3
+                    }
+                };
+            }
+            const ensembleConfig = {
+                minProviders: config_1.aiConfig.ensemble.minProviders,
+                maxProviders: 4,
+                consensusThreshold: config_1.aiConfig.ensemble.consensusThreshold,
+                disagreementThreshold: 0.3,
+                fallbackStrategy: 'WEIGHTED_VOTE',
+                weights: {
+                    accuracy: 0.5,
+                    speed: 0.2,
+                    cost: 0.2,
+                    diversity: 0.1
+                },
+                rebalancing: {
+                    enabled: true,
+                    frequency: 24,
+                    performanceWindow: 168,
+                    minSamples: 50
+                }
+            };
+            this.multiAIService = new multi_ai_service_1.MultiAIService(providerConfigs, ensembleConfig);
+            this.promptEngineering = new prompt_engineering_service_1.PromptEngineeringService();
+            const costStrategy = {
+                provider: 'gemini',
+                caching: config_1.aiConfig.caching.enabled,
+                batching: true,
+                modelSelection: 'default',
+                promptCompression: true,
+                costThreshold: 0.10
+            };
+            this.costOptimization = new cost_optimization_service_1.CostOptimizationService(costStrategy);
+            this.setupEventListeners();
+            logger_1.tradingLogger.apiCall('AI', 'initializeMultiProviderServices', true, 0, `Providers: ${Object.keys(providerConfigs).join(', ')}, Ensemble: true`);
+        }
+        catch (error) {
+            (0, logger_1.logError)(error instanceof Error ? error : new Error('Failed to initialize multi-provider services'), {});
+            this.useMultiProvider = false;
+        }
+    }
+    setupEventListeners() {
+        if (!this.multiAIService)
+            return;
+        this.multiAIService.on('ensembleDecision', (decision) => {
+            logger_1.tradingLogger.apiCall('Ensemble', 'decisionGenerated', true, 0, `Action: ${decision.action}, Confidence: ${decision.confidence}, Consensus: ${decision.consensus}, Providers: ${decision.providerSignals.length}`);
+        });
+        this.multiAIService.on('providerError', (error) => {
+            (0, logger_1.logError)(new Error(`Provider error: ${error.message}`), { provider: error.provider });
+        });
+    }
+    createDynamicContext(marketData) {
+        const now = new Date();
+        const volatilityLevel = marketData.volatility > 0.05 ? 'HIGH' :
+            marketData.volatility > 0.02 ? 'MEDIUM' : 'LOW';
+        const marketCondition = marketData.priceChange24h > 3 ? 'BULLISH' :
+            marketData.priceChange24h < -3 ? 'BEARISH' :
+                marketData.volatility > 0.05 ? 'VOLATILE' : 'SIDEWAYS';
+        return {
+            marketCondition,
+            volatilityLevel,
+            timeOfDay: now.toLocaleTimeString(),
+            dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
+            recentPerformance: marketData.priceChange24h,
+            riskTolerance: volatilityLevel === 'HIGH' ? 'CONSERVATIVE' : 'MODERATE',
+            positionSize: 5,
+            portfolioHeat: 25,
+            marketSentiment: marketData.priceChange24h > 0 ? 0.7 : 0.3
+        };
+    }
+    convertEnsembleToTradingSignal(ensemble) {
+        const bestSignal = ensemble.providerSignals
+            .sort((a, b) => b.signal.confidence - a.signal.confidence)[0];
+        return {
+            action: ensemble.action,
+            confidence: ensemble.confidence,
+            reasoning: ensemble.reasoning,
+            entryPrice: bestSignal.signal.entryPrice,
+            stopLoss: bestSignal.signal.stopLoss,
+            takeProfit: bestSignal.signal.takeProfit,
+            positionSize: bestSignal.signal.positionSize,
+            riskReward: bestSignal.signal.riskReward,
+            provider: 'ensemble',
+            model: bestSignal.signal.model
+        };
+    }
+    async checkGeminiHealth() {
+        try {
+            const testPrompt = "Respond with: 'OK'";
+            const response = await this.callGeminiAPI(testPrompt);
+            return response.candidates && response.candidates.length > 0;
+        }
+        catch {
+            return false;
         }
     }
 }

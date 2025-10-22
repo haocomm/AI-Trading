@@ -1,31 +1,16 @@
-interface MarketAnalysis {
-    symbol: string;
-    currentPrice: number;
-    priceChange24h: number;
-    volume: number;
-    high24h: number;
-    low24h: number;
-    volatility: number;
-    trend: 'BULLISH' | 'BEARISH' | 'SIDEWAYS';
-    momentum: number;
-    support: number;
-    resistance: number;
-}
-interface TradingSignal {
-    action: 'BUY' | 'SELL' | 'HOLD';
-    confidence: number;
-    reasoning: string;
-    entryPrice: number;
-    stopLoss: number;
-    takeProfit: number;
-    positionSize: number;
-    riskReward: number;
-}
+import { TradingSignal } from '@/types/ai.types';
+import { MarketAnalysis } from '@/types';
 export declare class AIService {
     private geminiApiKey;
     private model;
+    private multiAIService?;
+    private promptEngineering?;
+    private costOptimization?;
+    private useMultiProvider;
     constructor();
     generateTradingSignal(symbol: string, marketData: MarketAnalysis): Promise<TradingSignal>;
+    private generateMultiProviderSignal;
+    private generateGeminiSignal;
     private buildTradingPrompt;
     private callGeminiAPI;
     private parseAIResponse;
@@ -38,7 +23,38 @@ export declare class AIService {
         status: string;
         model: string;
         lastCheck: string;
+        multiProvider?: {
+            enabled: boolean;
+            providers?: Record<string, boolean>;
+            cacheStats?: {
+                size: number;
+                hitRate: number;
+            };
+        };
     }>;
+    getAIMetrics(): Promise<{
+        gemini: {
+            status: boolean;
+            model: string;
+        };
+        multiProvider?: {
+            providers: Record<string, any>;
+            cache: any;
+            cost: any;
+        };
+        performance: {
+            totalRequests: number;
+            successRate: number;
+            averageResponseTime: number;
+            dailyCost: number;
+        };
+    }>;
+    private hasValidMultiProviderConfig;
+    private initializeMultiProviderServices;
+    private setupEventListeners;
+    private createDynamicContext;
+    private convertEnsembleToTradingSignal;
+    private checkGeminiHealth;
 }
 export default AIService;
 //# sourceMappingURL=ai.service.d.ts.map

@@ -13,7 +13,7 @@ export declare class DecisionService {
         confidence: number;
     }>;
     makeBatchDecisions(symbols: string[]): Promise<any[]>;
-    executeDecision(symbol: string, action: 'BUY' | 'SELL'): Promise<boolean>;
+    executeDecision(symbol: string, action: 'BUY' | 'SELL' | 'HOLD'): Promise<boolean>;
     private gatherMarketData;
     private validateWithRiskManagement;
     private executeBuyOrder;

@@ -53,6 +53,20 @@ export interface MarketData {
   exchange: 'binance' | 'bitkub';
 }
 
+export interface MarketAnalysis {
+  symbol: string;
+  currentPrice: number;
+  priceChange24h: number;
+  volume: number;
+  high24h: number;
+  low24h: number;
+  volatility: number;
+  trend: 'BULLISH' | 'BEARISH' | 'SIDEWAYS';
+  momentum: number;
+  support: number;
+  resistance: number;
+}
+
 export interface RiskMetrics {
   portfolioValue: number;
   availableBalance: number;
@@ -93,6 +107,34 @@ export interface AIConfig {
   gemini: {
     apiKey: string;
     model: string;
+  };
+  providers: {
+    openai: {
+      apiKey: string;
+      models: string[];
+      defaultModel: string;
+    };
+    claude: {
+      apiKey: string;
+      models: string[];
+      defaultModel: string;
+    };
+    custom: {
+      apiKey?: string;
+      baseUrl?: string;
+      models: string[];
+      defaultModel: string;
+    };
+  };
+  ensemble: {
+    enabled: boolean;
+    minProviders: number;
+    consensusThreshold: number;
+  };
+  caching: {
+    enabled: boolean;
+    ttl: number;
+    maxSize: number;
   };
 }
 

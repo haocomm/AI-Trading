@@ -94,11 +94,12 @@ class DecisionService {
                 return true;
             }
             const marketData = await this.gatherMarketData(symbol);
+            const signal = await this.aiService.generateTradingSignal(symbol, marketData);
             if (action === 'BUY') {
-                return await this.executeBuyOrder(symbol, marketData.price);
+                return await this.executeBuyOrder(symbol, marketData.price, signal);
             }
             else if (action === 'SELL') {
-                return await this.executeSellOrder(symbol, marketData.price);
+                return await this.executeSellOrder(symbol, marketData.price, signal);
             }
             return false;
         }
@@ -147,7 +148,7 @@ class DecisionService {
             return false;
         }
     }
-    async executeBuyOrder(symbol, currentPrice) {
+    async executeBuyOrder(symbol, currentPrice, signal) {
         try {
             logger_1.logger.info(`Executing BUY order for ${symbol}`, { currentPrice });
             const positionSize = await this.riskService.validateTradeSize(symbol, 'BUY', currentPrice);
@@ -208,7 +209,7 @@ class DecisionService {
             return false;
         }
     }
-    async executeSellOrder(symbol, currentPrice) {
+    async executeSellOrder(symbol, currentPrice, signal) {
         try {
             const position = database_1.db.getPositionBySymbol(symbol);
             if (!position || position.status !== 'OPEN') {

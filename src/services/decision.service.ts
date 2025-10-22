@@ -64,7 +64,7 @@ export class DecisionService {
       // Create decision context
       const context: DecisionContext = {
         symbol,
-        currentPrice: marketData.price,
+        currentPrice: marketData.currentPrice,
         marketData,
         riskMetrics,
         aiAnalysis,
@@ -126,7 +126,7 @@ export class DecisionService {
   }
 
   // Execute AI decision
-  async executeDecision(symbol: string, action: 'BUY' | 'SELL'): Promise<boolean> {
+  async executeDecision(symbol: string, action: 'BUY' | 'SELL' | 'HOLD'): Promise<boolean> {
     try {
       if (action === 'HOLD') {
         logger.info(`Skipping execution for ${symbol} - HOLD decision`);
@@ -134,11 +134,12 @@ export class DecisionService {
       }
 
       const marketData = await this.gatherMarketData(symbol);
+      const signal = await this.aiService.generateTradingSignal(symbol, marketData);
 
       if (action === 'BUY') {
-        return await this.executeBuyOrder(symbol, marketData.price);
+        return await this.executeBuyOrder(symbol, marketData.currentPrice, signal);
       } else if (action === 'SELL') {
-        return await this.executeSellOrder(symbol, marketData.price);
+        return await this.executeSellOrder(symbol, marketData.currentPrice, signal);
       }
 
       return false;
@@ -155,11 +156,16 @@ export class DecisionService {
 
       return {
         symbol,
-        price: parseFloat(ticker.price),
+        currentPrice: parseFloat(ticker.price),
+        priceChange24h: parseFloat(ticker.change24h),
         volume: parseFloat(ticker.volume),
-        change24h: parseFloat(ticker.change24h),
         high24h: parseFloat(ticker.high24h),
         low24h: parseFloat(ticker.low24h),
+        volatility: 0, // Calculate from price history if needed
+        trend: 'SIDEWAYS' as const, // Determine from price action
+        momentum: 0, // Calculate from price changes
+        support: 0, // Calculate from technical analysis
+        resistance: 0, // Calculate from technical analysis
         timestamp: Date.now(),
       };
     } catch (error) {
@@ -181,7 +187,7 @@ export class DecisionService {
         symbol,
         signal.action,
         signal.positionSize,
-        marketData.price,
+        marketData.currentPrice,
         signal.stopLoss
       );
 
@@ -200,7 +206,7 @@ export class DecisionService {
     }
   }
 
-  private async executeBuyOrder(symbol: string, currentPrice: number): Promise<boolean> {
+  private async executeBuyOrder(symbol: string, currentPrice: number, signal?: any): Promise<boolean> {
     try {
       logger.info(`Executing BUY order for ${symbol}`, { currentPrice });
 
@@ -272,7 +278,7 @@ export class DecisionService {
     }
   }
 
-  private async executeSellOrder(symbol: string, currentPrice: number): Promise<boolean> {
+  private async executeSellOrder(symbol: string, currentPrice: number, signal?: any): Promise<boolean> {
     try {
       const position = db.getPositionBySymbol(symbol);
 

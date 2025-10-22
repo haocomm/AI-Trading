@@ -17,7 +17,7 @@ class AlertService {
     async sendAlert(alertData) {
         try {
             if (!this.isEnabled) {
-                logger.debug('Alerts disabled - skipping notification');
+                logger_1.logger.debug('Alerts disabled - skipping notification');
                 return false;
             }
             const alertMessage = this.formatAlertMessage(alertData);
@@ -88,7 +88,7 @@ class AlertService {
         try {
             const today = new Date().toDateString();
             if (today === this.lastDailySummary) {
-                logger.debug('Daily summary already sent today');
+                logger_1.logger.debug('Daily summary already sent today');
                 return false;
             }
             const alertData = {
@@ -163,7 +163,7 @@ class AlertService {
                 text: message,
                 html: this.formatHTMLEmail(alertData, message),
             };
-            logger.info('Email alert would be sent', {
+            logger_1.logger.info('Email alert would be sent', {
                 to: config_1.alertConfig.email.to,
                 subject: emailContent.subject,
             });

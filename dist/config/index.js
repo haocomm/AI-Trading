@@ -34,6 +34,34 @@ exports.aiConfig = {
         apiKey: process.env.GEMINI_API_KEY || '',
         model: process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp',
     },
+    providers: {
+        openai: {
+            apiKey: process.env.OPENAI_API_KEY || '',
+            models: ['gpt-4-turbo-preview', 'gpt-4', 'gpt-3.5-turbo'],
+            defaultModel: process.env.OPENAI_DEFAULT_MODEL || 'gpt-4-turbo-preview',
+        },
+        claude: {
+            apiKey: process.env.CLAUDE_API_KEY || '',
+            models: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229'],
+            defaultModel: process.env.CLAUDE_DEFAULT_MODEL || 'claude-3-5-sonnet-20241022',
+        },
+        custom: {
+            apiKey: process.env.CUSTOM_AI_API_KEY || '',
+            baseUrl: process.env.CUSTOM_AI_BASE_URL || 'http://localhost:8000/v1',
+            models: ['llama-3.1-70b', 'mixtral-8x7b', 'mistral-7b'],
+            defaultModel: process.env.CUSTOM_AI_DEFAULT_MODEL || 'llama-3.1-70b',
+        },
+    },
+    ensemble: {
+        enabled: process.env.ENSEMBLE_ENABLED === 'true',
+        minProviders: parseInt(process.env.ENSEMBLE_MIN_PROVIDERS || '2'),
+        consensusThreshold: parseFloat(process.env.ENSEMBLE_CONSENSUS_THRESHOLD || '0.6'),
+    },
+    caching: {
+        enabled: process.env.AI_CACHING_ENABLED === 'true',
+        ttl: parseInt(process.env.AI_CACHE_TTL || '300'),
+        maxSize: parseInt(process.env.AI_CACHE_MAX_SIZE || '1000'),
+    },
 };
 exports.alertConfig = {
     webhookUrl: process.env.ALERT_WEBHOOK_URL,

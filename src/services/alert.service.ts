@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { alertConfig, tradingConfig } from '@/config';
-import { tradingLogger, logError } from '@/utils/logger';
+import { tradingLogger, logError, logger } from '@/utils/logger';
 
 interface AlertData {
   type: 'TRADE' | 'POSITION' | 'RISK' | 'SYSTEM' | 'AI_DECISION' | 'DAILY_SUMMARY';
@@ -138,7 +138,7 @@ export class AlertService {
       const today = new Date().toDateString();
 
       if (today === this.lastDailySummary) {
-        logger.debug('Daily summary already sent today');
+      logger.debug('Daily summary already sent today');
         return false;
       }
 

@@ -167,7 +167,7 @@ function validateProductionConfig(errors: string[], warnings: string[]): void {
   }
 
   // Trading safety validation
-  if (process.TRADING_ENABLED === 'true' && process.PAPER_TRADING_ENABLED === 'true') {
+  if (process.env.TRADING_ENABLED === 'true' && process.env.PAPER_TRADING_ENABLED === 'true') {
     errors.push('Cannot have both real trading and paper trading enabled simultaneously');
   }
 }

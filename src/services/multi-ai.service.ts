@@ -134,7 +134,7 @@ export class MultiAIService extends EventEmitter {
         const provider = selectedProviders[i];
 
         if (response.status === 'fulfilled') {
-          const signal = this.parseProviderSignal(provider.name, response.value, marketData.currentPrice);
+          const signal = await this.parseProviderSignal(provider.name, response.value, marketData.currentPrice);
           providerSignals.push(signal);
         } else {
           tradingLogger.apiCall('Ensemble', 'providerError', false, 0, {
@@ -275,11 +275,11 @@ export class MultiAIService extends EventEmitter {
     ]);
   }
 
-  private parseProviderSignal(
+  private async parseProviderSignal(
     providerName: string,
     response: AIProviderResponse,
     currentPrice: number
-  ): ProviderSignal {
+  ): Promise<ProviderSignal> {
     try {
       // Try to extract JSON from response
       const jsonMatch = response.content.match(/\{[\s\S]*\}/);

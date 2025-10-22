@@ -104,7 +104,7 @@ export interface PortfolioMetrics {
   beta: number;
   trackingError: number;
   informationRatio: number;
-  var: number;
+  var95: number;
   maxDrawdown: number;
   calmarRatio: number;
   turnover: number;
@@ -551,7 +551,7 @@ export class PortfolioManagementService {
     const beta = this.calculateBetaFromReturns(returns);
     const trackingError = this.calculateTrackingError(returns);
     const informationRatio = alpha / (trackingError || 0.01);
-    const var = this.calculateVAR(returns, 0.05);
+    const var95 = this.calculateVAR(returns, 0.05);
     const maxDrawdown = this.calculateMaxDrawdown(returns);
     const calmarRatio = this.calculateCalmarRatioFromReturns(returns);
 
@@ -580,7 +580,7 @@ export class PortfolioManagementService {
       beta,
       trackingError,
       informationRatio,
-      var,
+      var95,
       maxDrawdown,
       calmarRatio,
       turnover: this.calculateTurnover(),
@@ -636,7 +636,7 @@ export class PortfolioManagementService {
     const expectedRisk = Math.sqrt(
       optimalWeights.reduce((sum, weight, i) =>
         sum + optimalWeights.reduce((sum2, weight2, j) =>
-          sum2 + (weight * weight * correlations[i][j] * risks[j]), 0), 0), 0)
+          sum2 + (weight * weight * correlations[i][j] * risks[j]), 0), 0)
     );
 
     return {
@@ -1022,7 +1022,7 @@ export class PortfolioManagementService {
 
     // Create constraint matrices
     const turnoverPenalty = constraints.maxTurnover > 0 ?
-      Array(n).fill(1).map((_, i, j) => i === j ? 1 : 1.1) : 1) :
+      Array(n).fill(1).map((_, i, j) => i === j ? 1 : 1.1) :
       Array(n).fill(1);
 
     const concentrationPenalty = constraints.maxConcentration > 0 ?

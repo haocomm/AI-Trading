@@ -14,12 +14,38 @@ console.log('📍 Working Directory:', process.cwd());
 // Set up module resolution for compiled JavaScript
 const originalRequire = require;
 require = function(id) {
-  // Handle @/ aliases for compiled JS
+  // Handle @/ aliases - map to compiled JS paths
   if (id.startsWith('@/')) {
-    const srcPath = id.replace('@/', './src/');
-    console.log(`🔗 Resolving ${id} -> ${srcPath}`);
-    return originalRequire(path.resolve(process.cwd(), srcPath));
+    // Remove @/ prefix and map to compiled dist directory
+    const cleanPath = id.replace('@/', '');
+    const distPath = path.resolve(process.cwd(), 'dist', cleanPath);
+
+    // Add .js extension if not present
+    const finalPath = distPath.endsWith('.js') ? distPath : distPath + '.js';
+
+    console.log(`🔗 Resolving ${id} -> ${finalPath}`);
+
+    // Check if file exists
+    if (fs.existsSync(finalPath)) {
+      return originalRequire(finalPath);
+    } else {
+      console.log(`⚠️  File not found: ${finalPath}`);
+      // Fallback to original resolution
+      return originalRequire(id);
+    }
   }
+
+  // Handle relative imports in compiled files
+  if (id.startsWith('./') || id.startsWith('../')) {
+    const callerPath = module.parent.filename;
+    const resolvedPath = path.resolve(path.dirname(callerPath), id);
+    const jsPath = resolvedPath.endsWith('.js') ? resolvedPath : resolvedPath + '.js';
+
+    if (fs.existsSync(jsPath)) {
+      return originalRequire(jsPath);
+    }
+  }
+
   return originalRequire(id);
 };
 

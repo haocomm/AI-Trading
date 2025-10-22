@@ -37,12 +37,15 @@ require = function(id) {
 
   // Handle relative imports in compiled files
   if (id.startsWith('./') || id.startsWith('../')) {
-    const callerPath = module.parent.filename;
-    const resolvedPath = path.resolve(path.dirname(callerPath), id);
-    const jsPath = resolvedPath.endsWith('.js') ? resolvedPath : resolvedPath + '.js';
+    // Check if module.parent exists
+    if (module.parent && module.parent.filename) {
+      const callerPath = module.parent.filename;
+      const resolvedPath = path.resolve(path.dirname(callerPath), id);
+      const jsPath = resolvedPath.endsWith('.js') ? resolvedPath : resolvedPath + '.js';
 
-    if (fs.existsSync(jsPath)) {
-      return originalRequire(jsPath);
+      if (fs.existsSync(jsPath)) {
+        return originalRequire(jsPath);
+      }
     }
   }
 
@@ -93,8 +96,23 @@ async function startTradingBot() {
 
     console.log('🚀 Starting AI Trading System...');
 
+    // Clear require cache to ensure fresh module loading
+    try {
+      delete require.cache[require.resolve('./dist/index.js')];
+    } catch (error) {
+      // Ignore if module not found yet
+    }
+
     // Load and start the main application
-    const mainApp = require('./dist/index.js');
+    let mainApp;
+    try {
+      mainApp = require('./dist/index.js');
+    } catch (error) {
+      console.error('❌ Failed to load main application - dist/index.js not found');
+      console.error('💡 Please run "npm run build" first to compile TypeScript');
+      console.error('🔧 Or run "npm run dev" for development mode');
+      process.exit(1);
+    }
 
     // Graceful shutdown handlers
     process.on('SIGINT', () => {

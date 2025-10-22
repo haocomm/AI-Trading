@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exchange Monitoring Dashboard - AI Trading Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse-red {
+            0%, 100% { background-color: rgba(239, 68, 68, 0.1); }
+            50% { background-color: rgba(239, 68, 68, 0.3); }
+        }
+        @keyframes pulse-green {
+            0%, 100% { background-color: rgba(34, 197, 94, 0.1); }
+            50% { background-color: rgba(34, 197, 94, 0.3); }
+        }
+        .alert-critical { animation: pulse-red 2s infinite; }
+        .alert-success { animation: pulse-green 2s infinite; }
+        .status-online { background-color: rgba(34, 197, 94, 0.2); }
+        .status-offline { background-color: rgba(239, 68, 68, 0.2); }
+        .status-degraded { background-color: rgba(245, 158, 11, 0.2); }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .hover-scale {
+            transition: transform 0.2s ease;
+        }
+        .hover-scale:hover {
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <i class="fas fa-chart-line text-2xl text-blue-400"></i>
+                    <div>
+                        <h1 class="text-2xl font-bold">Exchange Monitoring Dashboard</h1>
+                        <p class="text-sm text-gray-400">Multi-Exchange Arbitrage & Performance Monitoring</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <div class="text-sm text-gray-400">Last Update</div>
+                        <div id="lastUpdate" class="text-lg font-mono">--:--:--</div>
+                    </div>
+                    <button id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                    <button id="settingsBtn" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <!-- Alert Section -->
+        <div id="alertContainer" class="mb-6 space-y-2"></div>
+
+        <!-- Key Metrics Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <div class="glass-effect rounded-lg p-6 hover-scale">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Total Arbitrage Opportunities</p>
+                        <p id="totalOpportunities" class="text-3xl font-bold text-blue-400">0</p>
+                    </div>
+                    <i class="fas fa-exchange-alt text-3xl text-blue-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="glass-effect rounded-lg p-6 hover-scale">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Daily Profit</p>
+                        <p id="dailyProfit" class="text-3xl font-bold text-green-400">$0</p>
+                    </div>
+                    <i class="fas fa-dollar-sign text-3xl text-green-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="glass-effect rounded-lg p-6 hover-scale">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Success Rate</p>
+                        <p id="successRate" class="text-3xl font-bold text-yellow-400">0%</p>
+                    </div>
+                    <i class="fas fa-percentage text-3xl text-yellow-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="glass-effect rounded-lg p-6 hover-scale">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">System Status</p>
+                        <p id="systemStatus" class="text-xl font-bold text-green-400">All Online</p>
+                    </div>
+                    <i id="systemStatusIcon" class="fas fa-check-circle text-3xl text-green-400"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Exchange Status Cards -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Binance Status -->
+            <div class="glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold flex items-center">
+                        <img src="https://assets.coingecko.com/coins/images/279/large/binance.png" alt="Binance" class="w-6 h-6 mr-2">
+                        Binance
+                    </h2>
+                    <div id="binanceStatus" class="px-3 py-1 rounded-full text-sm font-semibold">
+                        <i class="fas fa-circle text-xs mr-1"></i>
+                        <span id="binanceStatusText">Checking...</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm">API Response Time</p>
+                        <p id="binanceLatency" class="text-lg font-mono">--ms</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">Daily Volume</p>
+                        <p id="binanceVolume" class="text-lg font-mono">$0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">Active Orders</p>
+                        <p id="binanceOrders" class="text-lg font-mono">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">Balance Value</p>
+                        <p id="binanceBalance" class="text-lg font-mono">$0</p>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-gray-400 text-sm mb-2">Top Markets</p>
+                    <div id="binanceMarkets" class="space-y-1"></div>
+                </div>
+            </div>
+
+            <!-- Bitkub Status -->
+            <div class="glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold flex items-center">
+                        <div class="w-6 h-6 bg-orange-500 rounded-full mr-2 flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">B</span>
+                        </div>
+                        Bitkub
+                    </h2>
+                    <div id="bitkubStatus" class="px-3 py-1 rounded-full text-sm font-semibold">
+                        <i class="fas fa-circle text-xs mr-1"></i>
+                        <span id="bitkubStatusText">Checking...</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm">API Response Time</p>
+                        <p id="bitkubLatency" class="text-lg font-mono">--ms</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">Daily Volume</p>
+                        <p id="bitkubVolume" class="text-lg font-mono">$0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">Active Orders</p>
+                        <p id="bitkubOrders" class="text-lg font-mono">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">Balance Value</p>
+                        <p id="bitkubBalance" class="text-lg font-mono">$0</p>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-gray-400 text-sm mb-2">Top Markets</p>
+                    <div id="bitkubMarkets" class="space-y-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arbitrage Opportunities -->
+        <div class="glass-effect rounded-lg p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold">
+                    <i class="fas fa-coins text-yellow-400 mr-2"></i>
+                    Active Arbitrage Opportunities
+                </h2>
+                <div class="flex space-x-2">
+                    <select id="minProfitFilter" class="bg-gray-700 px-3 py-1 rounded text-sm">
+                        <option value="0">All Profits</option>
+                        <option value="0.5">> 0.5%</option>
+                        <option value="1.0">> 1.0%</option>
+                        <option value="2.0">> 2.0%</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="arbitrageOpportunities" class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-700">
+                            <th class="text-left py-2">Symbol</th>
+                            <th class="text-left py-2">Type</th>
+                            <th class="text-left py-2">Buy Exchange</th>
+                            <th class="text-left py-2">Sell Exchange</th>
+                            <th class="text-right py-2">Spread %</th>
+                            <th class="text-right py-2">Profit %</th>
+                            <th class="text-right py-2">Est. Profit</th>
+                            <th class="text-center py-2">Risk</th>
+                            <th class="text-center py-2">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="arbitrageTableBody">
+                        <tr>
+                            <td colspan="9" class="text-center py-8 text-gray-400">
+                                Loading arbitrage opportunities...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Latency Chart -->
+            <div class="glass-effect rounded-lg p-6">
+                <h3 class="text-lg font-bold mb-4">
+                    <i class="fas fa-tachometer-alt text-blue-400 mr-2"></i>
+                    API Latency Trends
+                </h3>
+                <canvas id="latencyChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Profit Chart -->
+            <div class="glass-effect rounded-lg p-6">
+                <h3 class="text-lg font-bold mb-4">
+                    <i class="fas fa-chart-line text-green-400 mr-2"></i>
+                    Profit History
+                </h3>
+                <canvas id="profitChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Market Overview -->
+        <div class="glass-effect rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold">
+                    <i class="fas fa-globe text-purple-400 mr-2"></i>
+                    Market Overview
+                </h2>
+                <div class="flex space-x-4 text-sm">
+                    <div>
+                        <span class="text-gray-400">24h Volume:</span>
+                        <span id="marketVolume" class="font-bold">$0</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-400">BTC Dominance:</span>
+                        <span id="btcDominance" class="font-bold">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Top Gainers -->
+                <div>
+                    <h4 class="text-green-400 font-semibold mb-2">
+                        <i class="fas fa-arrow-up mr-1"></i>Top Gainers
+                    </h4>
+                    <div id="topGainers" class="space-y-2"></div>
+                </div>
+
+                <!-- Top Losers -->
+                <div>
+                    <h4 class="text-red-400 font-semibold mb-2">
+                        <i class="fas fa-arrow-down mr-1"></i>Top Losers
+                    </h4>
+                    <div id="topLosers" class="space-y-2"></div>
+                </div>
+
+                <!-- Volume Analysis -->
+                <div>
+                    <h4 class="text-blue-400 font-semibold mb-2">
+                        <i class="fas fa-chart-bar mr-1"></i>Volume Breakdown
+                    </h4>
+                    <canvas id="volumeChart" width="300" height="150"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold">Dashboard Settings</h3>
+                    <button onclick="closeSettings()" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Refresh Interval</label>
+                        <select id="refreshInterval" class="w-full bg-gray-700 rounded px-3 py-2">
+                            <option value="1000">1 second</option>
+                            <option value="5000" selected>5 seconds</option>
+                            <option value="10000">10 seconds</option>
+                            <option value="30000">30 seconds</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Alert Thresholds</label>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">Latency (ms)</span>
+                                <input type="number" id="latencyThreshold" value="1000" class="w-20 bg-gray-700 rounded px-2 py-1 text-sm">
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">Min Profit %</span>
+                                <input type="number" id="profitThreshold" value="0.5" step="0.1" class="w-20 bg-gray-700 rounded px-2 py-1 text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="autoRefresh" checked class="mr-2">
+                            <span class="text-sm">Auto Refresh</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button onclick="closeSettings()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors">
+                        Cancel
+                    </button>
+                    <button onclick="saveSettings()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors">
+                        Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let dashboardData = null;
+        let refreshInterval = null;
+        let charts = {};
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+            setupEventListeners();
+            startAutoRefresh();
+        });
+
+        function initializeDashboard() {
+            // Initialize charts
+            initializeCharts();
+
+            // Load initial data
+            loadDashboardData();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('refreshBtn').addEventListener('click', loadDashboardData);
+            document.getElementById('settingsBtn').addEventListener('click', openSettings);
+            document.getElementById('minProfitFilter').addEventListener('change', filterArbitrageOpportunities);
+        }
+
+        function startAutoRefresh() {
+            const autoRefresh = localStorage.getItem('autoRefresh') !== 'false';
+            if (autoRefresh) {
+                const interval = parseInt(localStorage.getItem('refreshInterval') || '5000');
+                refreshInterval = setInterval(loadDashboardData, interval);
+            }
+        }
+
+        async function loadDashboardData() {
+            try {
+                // Simulate API call - in real implementation, this would fetch from your backend
+                dashboardData = await simulateDashboardAPI();
+
+                updateDashboard();
+                updateLastRefreshTime();
+
+            } catch (error) {
+                console.error('Failed to load dashboard data:', error);
+                showError('Failed to load dashboard data');
+            }
+        }
+
+        async function simulateDashboardAPI() {
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            return {
+                timestamp: Date.now(),
+                exchanges: {
+                    binance: {
+                        name: 'BINANCE',
+                        status: 'ONLINE',
+                        connectivity: {
+                            api: true,
+                            responseTime: Math.floor(Math.random() * 200) + 50
+                        },
+                        trading: {
+                            dailyVolume: Math.floor(Math.random() * 100000000) + 50000000,
+                            activeOrders: Math.floor(Math.random() * 20) + 5
+                        },
+                        balances: {
+                            totalValue: Math.floor(Math.random() * 50000) + 10000
+                        },
+                        markets: [
+                            { symbol: 'BTCUSDT', price: 45000, change24h: 2.5, volume24h: 1000000 },
+                            { symbol: 'ETHUSDT', price: 3000, change24h: -1.2, volume24h: 800000 },
+                            { symbol: 'BNBUSDT', price: 400, change24h: 5.8, volume24h: 600000 }
+                        ]
+                    },
+                    bitkub: {
+                        name: 'BITKUB',
+                        status: 'ONLINE',
+                        connectivity: {
+                            api: true,
+                            responseTime: Math.floor(Math.random() * 300) + 100
+                        },
+                        trading: {
+                            dailyVolume: Math.floor(Math.random() * 50000000) + 20000000,
+                            activeOrders: Math.floor(Math.random() * 10) + 2
+                        },
+                        balances: {
+                            totalValue: Math.floor(Math.random() * 30000) + 5000
+                        },
+                        markets: [
+                            { symbol: 'THB_BTC', price: 1500000, change24h: 2.8, volume24h: 50000000 },
+                            { symbol: 'THB_ETH', price: 100000, change24h: -1.5, volume24h: 30000000 },
+                            { symbol: 'THB_BNB', price: 13333, change24h: 6.2, volume24h: 20000000 }
+                        ]
+                    }
+                },
+                arbitrage: {
+                    opportunities: generateMockArbitrageOpportunities(),
+                    statistics: {
+                        totalOpportunities: 12,
+                        executedToday: 8,
+                        successRate: 87.5,
+                        totalProfit: 1250.50,
+                        averageProfit: 156.31
+                    }
+                },
+                market: {
+                    overview: {
+                        total24hVolume: 250000000000,
+                        btcDominance: 45.2
+                    },
+                    topMovers: generateMockTopMovers()
+                },
+                performance: {
+                    latency: {
+                        api: { binance: 85, bitkub: 150, average: 117.5 }
+                    },
+                    errors: {
+                        total: 2,
+                        rate: 0.8
+                    }
+                },
+                alerts: generateMockAlerts()
+            };
+        }
+
+        function generateMockArbitrageOpportunities() {
+            const opportunities = [];
+            const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'DOTUSDT'];
+
+            for (let i = 0; i < 5; i++) {
+                const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+                const profitPercent = Math.random() * 3 + 0.2;
+
+                opportunities.push({
+                    id: `arb_${i}`,
+                    symbol,
+                    type: 'SIMPLE',
+                    exchanges: {
+                        buy: Math.random() > 0.5 ? 'binance' : 'bitkub',
+                        sell: Math.random() > 0.5 ? 'binance' : 'bitkub'
+                    },
+                    prices: {
+                        spreadPercent: profitPercent + 0.1
+                    },
+                    profitability: {
+                        profitPercent,
+                        netProfit: profitPercent * 1000 * (Math.random() * 5 + 1)
+                    },
+                    execution: {
+                        riskLevel: profitPercent > 2 ? 'HIGH' : profitPercent > 1 ? 'MEDIUM' : 'LOW'
+                    }
+                });
+            }
+
+            return opportunities.sort((a, b) => b.profitability.profitPercent - a.profitability.profitPercent);
+        }
+
+        function generateMockTopMovers() {
+            return [
+                { symbol: 'BTC', change24h: 3.2, volume24h: 1000000000 },
+                { symbol: 'ETH', change24h: -2.1, volume24h: 800000000 },
+                { symbol: 'BNB', change24h: 5.8, volume24h: 300000000 },
+                { symbol: 'ADA', change24h: -4.2, volume24h: 200000000 },
+                { symbol: 'DOT', change24h: 2.5, volume24h: 150000000 }
+            ];
+        }
+
+        function generateMockAlerts() {
+            const alerts = [];
+
+            // Add a critical alert occasionally
+            if (Math.random() > 0.8) {
+                alerts.push({
+                    id: 'alert_1',
+                    type: 'CRITICAL',
+                    category: 'CONNECTIVITY',
+                    title: 'High Latency Detected',
+                    message: 'Bitkub API latency is above threshold',
+                    timestamp: Date.now() - 60000
+                });
+            }
+
+            // Add profit alerts
+            if (Math.random() > 0.5) {
+                alerts.push({
+                    id: 'alert_2',
+                    type: 'INFO',
+                    category: 'ARBITRAGE',
+                    title: 'High Profit Opportunity',
+                    message: 'BTC/USDT arbitrage opportunity with 2.5% profit detected',
+                    timestamp: Date.now() - 120000
+                });
+            }
+
+            return alerts;
+        }
+
+        function updateDashboard() {
+            if (!dashboardData) return;
+
+            updateKeyMetrics();
+            updateExchangeStatus();
+            updateArbitrageOpportunities();
+            updateMarketOverview();
+            updateCharts();
+            updateAlerts();
+        }
+
+        function updateKeyMetrics() {
+            document.getElementById('totalOpportunities').textContent = dashboardData.arbitrage.opportunities.length;
+            document.getElementById('dailyProfit').textContent = `$${dashboardData.arbitrage.statistics.totalProfit.toFixed(2)}`;
+            document.getElementById('successRate').textContent = `${dashboardData.arbitrage.statistics.successRate}%`;
+
+            const allOnline = dashboardData.exchanges.binance.status === 'ONLINE' &&
+                             dashboardData.exchanges.bitkub.status === 'ONLINE';
+
+            document.getElementById('systemStatus').textContent = allOnline ? 'All Online' : 'Issues Detected';
+            document.getElementById('systemStatus').className = `text-xl font-bold ${allOnline ? 'text-green-400' : 'text-red-400'}`;
+
+            const statusIcon = document.getElementById('systemStatusIcon');
+            statusIcon.className = `fas ${allOnline ? 'fa-check-circle' : 'fa-exclamation-triangle'} text-3xl ${allOnline ? 'text-green-400' : 'text-red-400'}`;
+        }
+
+        function updateExchangeStatus() {
+            // Update Binance
+            updateExchangeCard('binance', dashboardData.exchanges.binance);
+
+            // Update Bitkub
+            updateExchangeCard('bitkub', dashboardData.exchanges.bitkub);
+        }
+
+        function updateExchangeCard(exchange, data) {
+            const statusElement = document.getElementById(`${exchange}Status`);
+            const statusText = document.getElementById(`${exchange}StatusText`);
+
+            statusText.textContent = data.status;
+
+            if (data.status === 'ONLINE') {
+                statusElement.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-green-500 text-white';
+            } else if (data.status === 'DEGRADED') {
+                statusElement.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-yellow-500 text-white';
+            } else {
+                statusElement.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-red-500 text-white';
+            }
+
+            document.getElementById(`${exchange}Latency`).textContent = `${data.connectivity.responseTime}ms`;
+            document.getElementById(`${exchange}Volume`).textContent = `$${(data.trading.dailyVolume / 1000000).toFixed(1)}M`;
+            document.getElementById(`${exchange}Orders`).textContent = data.trading.activeOrders;
+            document.getElementById(`${exchange}Balance`).textContent = `$${data.balances.totalValue.toLocaleString()}`;
+
+            // Update markets
+            const marketsContainer = document.getElementById(`${exchange}Markets`);
+            marketsContainer.innerHTML = data.markets.map(market => `
+                <div class="flex justify-between items-center py-1 border-b border-gray-800">
+                    <span class="text-sm">${market.symbol}</span>
+                    <span class="${market.change24h >= 0 ? 'text-green-400' : 'text-red-400'} text-sm">
+                        ${market.change24h >= 0 ? '+' : ''}${market.change24h}%
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function updateArbitrageOpportunities() {
+            const tbody = document.getElementById('arbitrageTableBody');
+            const minProfit = parseFloat(document.getElementById('minProfitFilter').value);
+
+            const filteredOpportunities = dashboardData.arbitrage.opportunities.filter(
+                opp => opp.profitability.profitPercent >= minProfit
+            );
+
+            if (filteredOpportunities.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center py-8 text-gray-400">
+                            No arbitrage opportunities meet the criteria
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filteredOpportunities.map(opp => `
+                <tr class="border-b border-gray-800 hover:bg-gray-800 transition-colors">
+                    <td class="py-2 font-mono">${opp.symbol}</td>
+                    <td class="py-2">
+                        <span class="px-2 py-1 bg-blue-500 bg-opacity-20 text-blue-400 rounded text-xs">
+                            ${opp.type}
+                        </span>
+                    </td>
+                    <td class="py-2">${opp.exchanges.buy.toUpperCase()}</td>
+                    <td class="py-2">${opp.exchanges.sell.toUpperCase()}</td>
+                    <td class="py-2 text-right font-mono">${opp.prices.spreadPercent.toFixed(2)}%</td>
+                    <td class="py-2 text-right font-mono text-green-400">
+                        ${opp.profitability.profitPercent.toFixed(2)}%
+                    </td>
+                    <td class="py-2 text-right font-mono text-green-400">
+                        $${opp.profitability.netProfit.toFixed(2)}
+                    </td>
+                    <td class="py-2 text-center">
+                        <span class="px-2 py-1 bg-opacity-20 rounded text-xs
+                            ${opp.execution.riskLevel === 'HIGH' ? 'bg-red-500 text-red-400' :
+                              opp.execution.riskLevel === 'MEDIUM' ? 'bg-yellow-500 text-yellow-400' :
+                              'bg-green-500 text-green-400'}">
+                            ${opp.execution.riskLevel}
+                        </span>
+                    </td>
+                    <td class="py-2 text-center">
+                        <button onclick="executeArbitrage('${opp.id}')"
+                                class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-xs transition-colors">
+                            Execute
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateMarketOverview() {
+            document.getElementById('marketVolume').textContent = `$${(dashboardData.market.overview.total24hVolume / 1000000000).toFixed(1)}B`;
+            document.getElementById('btcDominance').textContent = `${dashboardData.market.overview.btcDominance}%`;
+
+            // Update top gainers
+            const gainers = dashboardData.market.topMovers.filter(m => m.change24h > 0).slice(0, 3);
+            document.getElementById('topGainers').innerHTML = gainers.map(mover => `
+                <div class="flex justify-between items-center py-2 border-b border-gray-800">
+                    <span class="text-sm">${mover.symbol}</span>
+                    <span class="text-green-400 text-sm font-mono">+${mover.change24h}%</span>
+                </div>
+            `).join('');
+
+            // Update top losers
+            const losers = dashboardData.market.topMovers.filter(m => m.change24h < 0).slice(0, 3);
+            document.getElementById('topLosers').innerHTML = losers.map(mover => `
+                <div class="flex justify-between items-center py-2 border-b border-gray-800">
+                    <span class="text-sm">${mover.symbol}</span>
+                    <span class="text-red-400 text-sm font-mono">${mover.change24h}%</span>
+                </div>
+            `).join('');
+
+            updateVolumeChart();
+        }
+
+        function initializeCharts() {
+            // Initialize latency chart
+            const latencyCtx = document.getElementById('latencyChart').getContext('2d');
+            charts.latency = new Chart(latencyCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Binance',
+                        data: [],
+                        borderColor: 'rgb(255, 159, 64)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        tension: 0.1
+                    }, {
+                        label: 'Bitkub',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: 'white' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+
+            // Initialize profit chart
+            const profitCtx = document.getElementById('profitChart').getContext('2d');
+            charts.profit = new Chart(profitCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Daily Profit',
+                        data: [],
+                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                        borderColor: 'rgb(34, 197, 94)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: 'white' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+
+            // Initialize volume chart
+            const volumeCtx = document.getElementById('volumeChart').getContext('2d');
+            charts.volume = new Chart(volumeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Binance', 'Bitkub'],
+                    datasets: [{
+                        data: [70, 30],
+                        backgroundColor: [
+                            'rgba(255, 159, 64, 0.8)',
+                            'rgba(255, 99, 132, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgb(255, 159, 64)',
+                            'rgb(255, 99, 132)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: 'white' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            // Update latency chart with random data for demo
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString();
+
+            if (charts.latency.data.labels.length > 20) {
+                charts.latency.data.labels.shift();
+                charts.latency.data.datasets[0].data.shift();
+                charts.latency.data.datasets[1].data.shift();
+            }
+
+            charts.latency.data.labels.push(timeLabel);
+            charts.latency.data.datasets[0].data.push(dashboardData.performance.latency.api.binance);
+            charts.latency.data.datasets[1].data.push(dashboardData.performance.latency.api.bitkub);
+            charts.latency.update();
+
+            // Update profit chart with mock data
+            if (charts.profit.data.labels.length === 0) {
+                // Initialize with some mock historical data
+                const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                const profits = [850, 1200, 950, 1450, 1100, 1650, dashboardData.arbitrage.statistics.totalProfit];
+
+                charts.profit.data.labels = days;
+                charts.profit.data.datasets[0].data = profits;
+                charts.profit.update();
+            }
+        }
+
+        function updateVolumeChart() {
+            // Update volume breakdown (mock data)
+            const binanceVolume = 70 + Math.random() * 10;
+            const bitkubVolume = 100 - binanceVolume;
+
+            charts.volume.data.datasets[0].data = [binanceVolume, bitkubVolume];
+            charts.volume.update();
+        }
+
+        function updateAlerts() {
+            const alertContainer = document.getElementById('alertContainer');
+
+            if (dashboardData.alerts.length === 0) {
+                alertContainer.innerHTML = '';
+                return;
+            }
+
+            alertContainer.innerHTML = dashboardData.alerts.map(alert => {
+                const alertClass = alert.type === 'CRITICAL' ? 'alert-critical border-red-500 bg-red-500 bg-opacity-10' :
+                                 alert.type === 'WARNING' ? 'border-yellow-500 bg-yellow-500 bg-opacity-10' :
+                                 alert.type === 'ERROR' ? 'border-red-500 bg-red-500 bg-opacity-10' :
+                                 'border-blue-500 bg-blue-500 bg-opacity-10';
+
+                const iconClass = alert.type === 'CRITICAL' ? 'fa-exclamation-triangle text-red-500' :
+                                alert.type === 'WARNING' ? 'fa-exclamation-circle text-yellow-500' :
+                                alert.type === 'ERROR' ? 'fa-times-circle text-red-500' :
+                                'fa-info-circle text-blue-500';
+
+                return `
+                    <div class="${alertClass} border rounded-lg p-4 flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fas ${iconClass} mr-3"></i>
+                            <div>
+                                <h4 class="font-semibold">${alert.title}</h4>
+                                <p class="text-sm text-gray-300">${alert.message}</p>
+                            </div>
+                        </div>
+                        <button onclick="dismissAlert('${alert.id}')" class="text-gray-400 hover:text-white">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateLastRefreshTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+        }
+
+        function filterArbitrageOpportunities() {
+            updateArbitrageOpportunities();
+        }
+
+        function executeArbitrage(opportunityId) {
+            if (confirm('Are you sure you want to execute this arbitrage opportunity?')) {
+                // In real implementation, this would call your API to execute the arbitrage
+                showSuccess(`Arbitrage execution initiated for opportunity ${opportunityId}`);
+            }
+        }
+
+        function dismissAlert(alertId) {
+            // Remove alert from display
+            dashboardData.alerts = dashboardData.alerts.filter(alert => alert.id !== alertId);
+            updateAlerts();
+        }
+
+        function openSettings() {
+            document.getElementById('settingsModal').classList.remove('hidden');
+            loadSettings();
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        function loadSettings() {
+            document.getElementById('refreshInterval').value = localStorage.getItem('refreshInterval') || '5000';
+            document.getElementById('latencyThreshold').value = localStorage.getItem('latencyThreshold') || '1000';
+            document.getElementById('profitThreshold').value = localStorage.getItem('profitThreshold') || '0.5';
+            document.getElementById('autoRefresh').checked = localStorage.getItem('autoRefresh') !== 'false';
+        }
+
+        function saveSettings() {
+            const refreshInterval = document.getElementById('refreshInterval').value;
+            const latencyThreshold = document.getElementById('latencyThreshold').value;
+            const profitThreshold = document.getElementById('profitThreshold').value;
+            const autoRefresh = document.getElementById('autoRefresh').checked;
+
+            localStorage.setItem('refreshInterval', refreshInterval);
+            localStorage.setItem('latencyThreshold', latencyThreshold);
+            localStorage.setItem('profitThreshold', profitThreshold);
+            localStorage.setItem('autoRefresh', autoRefresh.toString());
+
+            // Restart auto refresh with new interval
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                if (autoRefresh) {
+                    refreshInterval = setInterval(loadDashboardData, parseInt(refreshInterval));
+                }
+            }
+
+            closeSettings();
+            showSuccess('Settings saved successfully');
+        }
+
+        function showError(message) {
+            // Show error toast or notification
+            console.error(message);
+        }
+
+        function showSuccess(message) {
+            // Show success toast or notification
+            console.log(message);
+        }
+    </script>
+</body>
+</html>

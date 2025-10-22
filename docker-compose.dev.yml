@@ -1,0 +1,89 @@
+# =============================================================================
+# AI Trading Platform - Development Docker Compose Override
+# Development-specific configurations for hot reload and debugging
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # Main Trading Application - Development Configuration
+  trading-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+      - DEBUG=true
+      - HOT_RELOAD=true
+      - LOG_LEVEL=debug
+      - TRADING_ENABLED=false
+      - PAPER_TRADING_ENABLED=true
+    volumes:
+      - ./src:/app/src:ro
+      - ./logs:/app/logs
+      - ./data:/app/data
+    ports:
+      - "9229:9229"  # Node.js debugging port
+    command: ["npm", "run", "dev"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+        reservations:
+          memory: 256M
+          cpus: '0.125'
+
+  # Redis Commander - Redis GUI
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ai-trading-redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
+    ports:
+      - "8081:8081"
+    networks:
+      - trading-network
+    depends_on:
+      - redis
+    profiles:
+      - development
+
+  # pgAdmin - PostgreSQL GUI
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ai-trading-pgadmin
+    restart: unless-stopped
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@trading.local
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - trading-network
+    depends_on:
+      - postgres
+    profiles:
+      - development
+
+  # MailHog - Email testing
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ai-trading-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - trading-network
+    profiles:
+      - development
+
+# Development-specific volumes
+volumes:
+  pgadmin_data:
+    driver: local

@@ -1,0 +1,280 @@
+# =============================================================================
+# AI Trading Platform - Prometheus Alert Rules
+# Phase 2.4 Multi-Exchange Expansion Monitoring
+# =============================================================================
+
+groups:
+  - name: ai-trading-platform
+    rules:
+      # Application Health Alerts
+      - alert: ApplicationDown
+        expr: up{job="ai-trading-platform"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "AI Trading Platform is down"
+          description: "AI Trading Platform has been down for more than 30 seconds."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }} seconds."
+
+      # Trading System Alerts
+      - alert: TradingSystemDown
+        expr: trading_system_active == 0
+        for: 60s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Trading system is not active"
+          description: "The AI trading system has been inactive for more than 1 minute."
+
+      - alert: NoTradingDecisions
+        expr: rate(trading_decisions_total[5m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No trading decisions being made"
+          description: "No trading decisions have been made in the last 10 minutes."
+
+      - alert: HighRiskLevel
+        expr: trading_risk_level > 8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High risk level detected"
+          description: "Trading system risk level is {{ $value }} (scale 1-10)."
+
+      - alert: DailyLossLimitApproaching
+        expr: (trading_daily_loss / trading_daily_loss_limit) > 0.8
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Daily loss limit approaching"
+          description: "Daily loss is {{ $value | humanizePercentage }} of the limit."
+
+      - alert: DailyLossLimitReached
+        expr: (trading_daily_loss / trading_daily_loss_limit) >= 1
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Daily loss limit reached"
+          description: "Daily loss limit has been reached. Trading should be stopped."
+
+      # Exchange Connection Alerts
+      - alert: BinanceConnectionDown
+        expr: exchange_connection_status{exchange="binance"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Binance connection is down"
+          description: "Cannot connect to Binance API."
+
+      - alert: BitkubConnectionDown
+        expr: exchange_connection_status{exchange="bitkub"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bitkub connection is down"
+          description: "Cannot connect to Bitkub API."
+
+      - alert: ExchangeAPIErrorRate
+        expr: rate(exchange_api_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High exchange API error rate"
+          description: "Exchange API error rate is {{ $value }} errors per second."
+
+      # AI Service Alerts
+      - alert: AIServiceDown
+        expr: ai_service_status{provider!=""} == 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI service is down"
+          description: "AI service {{ $labels.provider }} is not responding."
+
+      - alert: AIResponseTimeHigh
+        expr: ai_service_response_time_seconds > 30
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI service response time is high"
+          description: "AI service {{ $labels.provider }} response time is {{ $value }} seconds."
+
+      - alert: AICostRateHigh
+        expr: rate(ai_service_cost_usd[1h]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI service cost rate is high"
+          description: "AI service cost is ${{ $value }} per hour."
+
+      # Arbitrage System Alerts
+      - alert: ArbitrageSystemDown
+        expr: arbitrage_system_active == 0
+        for: 60s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Arbitrage system is not active"
+          description: "The arbitrage system has been inactive for more than 1 minute."
+
+      - alert: HighProfitArbitrageOpportunity
+        expr: arbitrage_opportunity_profit_percent > 2
+        for: 0s
+        labels:
+          severity: info
+        annotations:
+          summary: "High profit arbitrage opportunity detected"
+          description: "Arbitrage opportunity with {{ $value }}% profit detected for {{ $labels.symbol }}."
+
+      - alert: ArbitrageExecutionFailed
+        expr: rate(arbitrage_executions_failed_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Arbitrage execution failure rate is high"
+          description: "Arbitrage execution failure rate is {{ $value }} per second."
+
+      # Database Alerts
+      - alert: DatabaseConnectionDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection is down"
+          description: "Cannot connect to PostgreSQL database."
+
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection usage is high"
+          description: "Database connection usage is {{ $value | humanizePercentage }}."
+
+      - alert: DatabaseDiskSpaceHigh
+        expr: (pg_database_size_bytes / 1024 / 1024 / 1024) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database disk usage is high"
+          description: "Database size is {{ $value }}GB."
+
+      # Memory and CPU Alerts
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%."
+
+      # Disk Space Alerts
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is {{ $value | humanizePercentage }} full."
+
+      - alert: DiskSpaceWarning
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space getting low"
+          description: "Disk space is {{ $value | humanizePercentage }} full."
+
+  - name: business-metrics
+    rules:
+      # Trading Performance Alerts
+      - alert: NoTradesToday
+        expr: increase(trading_trades_total[24h]) == 0
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "No trades executed today"
+          description: "No trades have been executed in the last 24 hours."
+
+      - alert: TradingPerformancePoor
+        expr: (trading_profit_loss_24h / trading_investment_24h) < -0.05
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Poor trading performance"
+          description: "Trading loss is {{ $value | humanizePercentage }} in the last 24 hours."
+
+      - alert: TradingPerformanceExcellent
+        expr: (trading_profit_loss_24h / trading_investment_24h) > 0.05
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "Excellent trading performance"
+          description: "Trading profit is {{ $value | humanizePercentage }} in the last 24 hours."
+
+      # Thai Market Specific Alerts
+      - alert: ThaiMarketComplianceViolation
+        expr: thai_compliance_violations_total > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Thai market compliance violation"
+          description: "{{ $value }} Thai market compliance violations detected."
+
+      - alert: ThaiMarketOutsideHours
+        expr: thai_market_hours_active == 0 and trading_enabled == 1
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Trading outside Thai market hours"
+          description: "Trading is active outside Thai market regulated hours."

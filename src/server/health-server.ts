@@ -10,7 +10,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { HealthService } from '@/services/health.service';
-import { tradingLogger } from '@/utils/logger';
+import { tradingLogger, logger } from '@/utils/logger';
 import { environmentFeatures } from '@/config';
 import { ErrorRecoveryService } from '@/services/error-recovery.service';
 
@@ -35,7 +35,7 @@ export class HealthServer {
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.server = this.app.listen(this.port, () => {
-        tradingLogger.info(`Health server started on port ${this.port}`, {
+        logger.info(`Health server started on port ${this.port}`, {
           type: 'SERVER_START',
           port: this.port,
           environment: process.env.NODE_ENV,
@@ -47,7 +47,7 @@ export class HealthServer {
       });
 
       this.server.on('error', (error: any) => {
-        tradingLogger.error('Failed to start health server', {
+        logger.error('Failed to start health server', {
           type: 'SERVER_ERROR',
           error: error.message,
           port: this.port,
@@ -64,7 +64,7 @@ export class HealthServer {
     return new Promise((resolve) => {
       if (this.server) {
         this.server.close(() => {
-          tradingLogger.info('Health server stopped', {
+          logger.info('Health server stopped', {
             type: 'SERVER_STOP',
             port: this.port,
           });
@@ -126,7 +126,7 @@ export class HealthServer {
       res.on('finish', () => {
         const duration = Date.now() - startTime;
 
-        tradingLogger.debug('Health endpoint request', {
+        logger.debug('Health endpoint request', {
           type: 'HTTP_REQUEST',
           method: req.method,
           url: req.url,
@@ -351,7 +351,7 @@ export class HealthServer {
         // Clear health cache
         this.healthService.clearCache();
 
-        tradingLogger.warn('Emergency reset triggered via health endpoint', {
+        logger.warn('Emergency reset triggered via health endpoint', {
           type: 'EMERGENCY_RESET',
           ip: req.ip,
           userAgent: req.get('User-Agent'),
@@ -408,7 +408,7 @@ export class HealthServer {
 
     // Global error handler
     this.app.use((error: any, req: Request, res: Response, next: NextFunction) => {
-      tradingLogger.error('Health server error', {
+      logger.error('Health server error', {
         type: 'SERVER_ERROR',
         error: error.message,
         stack: error.stack,
@@ -440,7 +440,7 @@ export class HealthServer {
       'POST /health/emergency/reset',
     ];
 
-    tradingLogger.info('Health server endpoints available', {
+    logger.info('Health server endpoints available', {
       type: 'SERVER_ENDPOINTS',
       endpoints,
       port: this.port,

@@ -76,7 +76,7 @@ class MultiAIService extends events_1.EventEmitter {
                 const response = responses[i];
                 const provider = selectedProviders[i];
                 if (response.status === 'fulfilled') {
-                    const signal = this.parseProviderSignal(provider.name, response.value, marketData.currentPrice);
+                    const signal = await this.parseProviderSignal(provider.name, response.value, marketData.currentPrice);
                     providerSignals.push(signal);
                 }
                 else {
@@ -167,7 +167,7 @@ class MultiAIService extends events_1.EventEmitter {
             timeoutPromise
         ]);
     }
-    parseProviderSignal(providerName, response, currentPrice) {
+    async parseProviderSignal(providerName, response, currentPrice) {
         try {
             const jsonMatch = response.content.match(/\{[\s\S]*\}/);
             let signalData = {};

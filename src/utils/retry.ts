@@ -180,7 +180,7 @@ export async function retry<T>(
       // Check if this is the last attempt or if error is not retryable
       if (attempt === opts.maxAttempts || !opts.retryablePredicate(error)) {
         if (opts.enableLogging) {
-          console.error(`❌ Retry failed after ${attempt} attempts. Last error:`, error.message || error);
+          console.error(`❌ Retry failed after ${attempt} attempts. Last error:`, (error as Error).message || error);
         }
         throw new RetryError(
           `Retry failed after ${attempt} attempts`,
@@ -205,7 +205,7 @@ export async function retry<T>(
       opts.onRetry(attempt, error, delay);
 
       if (opts.enableLogging) {
-        console.warn(`⏳ Retry attempt ${attempt} failed, retrying in ${delay}ms. Error: ${error.message || error}`);
+        console.warn(`⏳ Retry attempt ${attempt} failed, retrying in ${delay}ms. Error: ${(error as Error).message || error}`);
       }
 
       // Wait before next attempt

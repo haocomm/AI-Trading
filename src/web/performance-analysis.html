@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Analysis - AI Trading Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@latest"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .metric-card {
+            @apply glass-effect rounded-lg p-6 hover:shadow-xl transition-all duration-200;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+
+        .mini-chart {
+            height: 150px;
+        }
+
+        .positive { @apply text-green-400; }
+        .negative { @apply text-red-400; }
+        .neutral { @apply text-gray-400; }
+
+        .date-range-selector {
+            @apply flex space-x-2 p-1 bg-gray-800 rounded-lg;
+        }
+
+        .date-range-selector button {
+            @apply px-3 py-1 rounded text-sm transition-colors;
+        }
+
+        .date-range-selector button.active {
+            @apply bg-blue-600 text-white;
+        }
+
+        .date-range-selector button:not(.active) {
+            @apply text-gray-400 hover:text-white hover:bg-gray-700;
+        }
+
+        .performance-metric {
+            @apply flex items-center justify-between p-3 bg-gray-800 rounded-lg;
+        }
+
+        .export-menu {
+            @apply absolute bg-gray-700 rounded-lg shadow-xl p-2 z-50 min-w-40;
+        }
+
+        .heatmap-cell {
+            @apply text-xs p-2 text-center;
+        }
+
+        .heatmap-positive { @apply bg-green-900 text-green-300; }
+        .heatmap-negative { @apply bg-red-900 text-red-300; }
+        .heatmap-neutral { @apply bg-gray-800 text-gray-300; }
+
+        @media (max-width: 768px) {
+            .chart-container { height: 300px; }
+            .metric-card { @apply p-4; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-40">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-chart-line text-2xl text-blue-400"></i>
+                    <div>
+                        <h1 class="text-xl md:text-2xl font-bold">Performance Analysis</h1>
+                        <p class="text-xs md:text-sm text-gray-400">Historical Trading Performance</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 md:space-x-4">
+                    <div class="relative">
+                        <button id="exportBtn" class="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                            <i class="fas fa-download mr-1 md:mr-2"></i>
+                            <span class="hidden md:inline">Export</span>
+                        </button>
+                        <div id="exportMenu" class="export-menu hidden">
+                            <button onclick="exportData('pdf')" class="w-full text-left px-3 py-2 hover:bg-gray-600 rounded text-sm">
+                                <i class="fas fa-file-pdf mr-2"></i>Export as PDF
+                            </button>
+                            <button onclick="exportData('excel')" class="w-full text-left px-3 py-2 hover:bg-gray-600 rounded text-sm">
+                                <i class="fas fa-file-excel mr-2"></i>Export as Excel
+                            </button>
+                            <button onclick="exportData('csv')" class="w-full text-left px-3 py-2 hover:bg-gray-600 rounded text-sm">
+                                <i class="fas fa-file-csv mr-2"></i>Export as CSV
+                            </button>
+                        </div>
+                    </div>
+                    <button id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                        <i class="fas fa-sync-alt mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <!-- Date Range Selector -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
+            <div class="date-range-selector">
+                <button onclick="setDateRange('1D')" data-range="1D" class="active">1D</button>
+                <button onclick="setDateRange('1W')" data-range="1W">1W</button>
+                <button onclick="setDateRange('1M')" data-range="1M">1M</button>
+                <button onclick="setDateRange('3M')" data-range="3M">3M</button>
+                <button onclick="setDateRange('6M')" data-range="6M">6M</button>
+                <button onclick="setDateRange('1Y')" data-range="1Y">1Y</button>
+                <button onclick="setDateRange('ALL')" data-range="ALL">ALL</button>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <label class="text-sm text-gray-400">From:</label>
+                    <input type="date" id="startDate" class="bg-gray-700 rounded px-3 py-1 text-sm">
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label class="text-sm text-gray-400">To:</label>
+                    <input type="date" id="endDate" class="bg-gray-700 rounded px-3 py-1 text-sm">
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Performance Metrics -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="metric-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Total Return</p>
+                        <p class="text-2xl md:text-3xl font-bold text-green-400">+24.7%</p>
+                        <p class="text-xs text-gray-400">vs S&P 500: +18.2%</p>
+                    </div>
+                    <i class="fas fa-chart-line text-2xl md:text-3xl text-green-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Annualized Return</p>
+                        <p class="text-2xl md:text-3xl font-bold text-blue-400">18.3%</p>
+                        <p class="text-xs text-gray-400">Risk-adjusted</p>
+                    </div>
+                    <i class="fas fa-percentage text-2xl md:text-3xl text-blue-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Sharpe Ratio</p>
+                        <p class="text-2xl md:text-3xl font-bold text-purple-400">1.82</p>
+                        <p class="text-xs text-gray-400">Excellent</p>
+                    </div>
+                    <i class="fas fa-balance-scale text-2xl md:text-3xl text-purple-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Max Drawdown</p>
+                        <p class="text-2xl md:text-3xl font-bold text-red-400">-8.2%</p>
+                        <p class="text-xs text-gray-400">Recovered in 12 days</p>
+                    </div>
+                    <i class="fas fa-chart-area text-2xl md:text-3xl text-red-400 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Performance Chart -->
+        <div class="metric-card mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold">Portfolio Performance</h2>
+                <div class="flex space-x-2">
+                    <button onclick="toggleChartType()" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
+                        <i class="fas fa-exchange-alt mr-1"></i>Toggle View
+                    </button>
+                    <button onclick="resetZoom()" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">
+                        <i class="fas fa-search-minus mr-1"></i>Reset Zoom
+                    </button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="performanceChart"></canvas>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                <div class="text-center">
+                    <p class="text-gray-400 text-sm">Best Day</p>
+                    <p class="text-lg font-bold text-green-400">+5.2%</p>
+                    <p class="text-xs text-gray-500">Mar 15, 2024</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-gray-400 text-sm">Worst Day</p>
+                    <p class="text-lg font-bold text-red-400">-3.8%</p>
+                    <p class="text-xs text-gray-500">Jan 22, 2024</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-gray-400 text-sm">Volatility</p>
+                    <p class="text-lg font-bold text-yellow-400">12.4%</p>
+                    <p class="text-xs text-gray-500">Annualized</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly Returns Heatmap -->
+        <div class="metric-card mb-6">
+            <h2 class="text-xl font-bold mb-4">Monthly Returns Heatmap</h2>
+            <div class="overflow-x-auto">
+                <div id="heatmapContainer" class="min-w-full">
+                    <!-- Heatmap will be generated here -->
+                </div>
+            </div>
+            <div class="flex items-center justify-center space-x-4 mt-4">
+                <div class="flex items-center space-x-2">
+                    <div class="w-4 h-4 heatmap-positive rounded"></div>
+                    <span class="text-xs text-gray-400">Positive</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-4 h-4 heatmap-negative rounded"></div>
+                    <span class="text-xs text-gray-400">Negative</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-4 h-4 heatmap-neutral rounded"></div>
+                    <span class="text-xs text-gray-400">Neutral</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Risk Analysis -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Risk-Return Chart -->
+            <div class="metric-card">
+                <h3 class="text-lg font-bold mb-4">Risk-Return Analysis</h3>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="riskReturnChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Drawdown Chart -->
+            <div class="metric-card">
+                <h3 class="text-lg font-bold mb-4">Drawdown Analysis</h3>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="drawdownChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Attribution -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Asset Allocation -->
+            <div class="metric-card">
+                <h3 class="text-lg font-bold mb-4">Asset Allocation Performance</h3>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="allocationChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Strategy Performance -->
+            <div class="metric-card">
+                <h3 class="text-lg font-bold mb-4">Strategy Breakdown</h3>
+                <div class="space-y-3">
+                    <div class="performance-metric">
+                        <div>
+                            <span class="font-semibold">Arbitrage</span>
+                            <span class="text-xs text-gray-400">15 trades</span>
+                        </div>
+                        <span class="text-green-400 font-bold">+12.4%</span>
+                    </div>
+                    <div class="performance-metric">
+                        <div>
+                            <span class="font-semibold">Trend Following</span>
+                            <span class="text-xs text-gray-400">8 trades</span>
+                        </div>
+                        <span class="text-green-400 font-bold">+8.2%</span>
+                    </div>
+                    <div class="performance-metric">
+                        <div>
+                            <span class="font-semibold">Mean Reversion</span>
+                            <span class="text-xs text-gray-400">12 trades</span>
+                        </div>
+                        <span class="text-red-400 font-bold">-2.1%</span>
+                    </div>
+                    <div class="performance-metric">
+                        <div>
+                            <span class="font-semibold">AI Predictions</span>
+                            <span class="text-xs text-gray-400">6 trades</span>
+                        </div>
+                        <span class="text-green-400 font-bold">+6.2%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk Metrics -->
+            <div class="metric-card">
+                <h3 class="text-lg font-bold mb-4">Risk Metrics</h3>
+                <div class="space-y-3">
+                    <div class="performance-metric">
+                        <span>Beta</span>
+                        <span class="font-bold">0.82</span>
+                    </div>
+                    <div class="performance-metric">
+                        <span>Alpha</span>
+                        <span class="text-green-400 font-bold">6.5%</span>
+                    </div>
+                    <div class="performance-metric">
+                        <span>Sortino Ratio</span>
+                        <span class="font-bold">2.41</span>
+                    </div>
+                    <div class="performance-metric">
+                        <span>Calmar Ratio</span>
+                        <span class="font-bold">2.23</span>
+                    </div>
+                    <div class="performance-metric">
+                        <span>VaR (95%)</span>
+                        <span class="font-bold">-$2,847</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Statistics Table -->
+        <div class="metric-card">
+            <h2 class="text-xl font-bold mb-4">Detailed Performance Statistics</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-700">
+                            <th class="text-left py-3">Metric</th>
+                            <th class="text-right py-3">1 Month</th>
+                            <th class="text-right py-3">3 Months</th>
+                            <th class="text-right py-3">6 Months</th>
+                            <th class="text-right py-3">1 Year</th>
+                            <th class="text-right py-3">Since Inception</th>
+                        </tr>
+                    </thead>
+                    <tbody id="performanceTable">
+                        <!-- Table rows will be generated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Performance Analysis System
+        class PerformanceAnalysis {
+            constructor() {
+                this.charts = new Map();
+                this.currentDateRange = '1M';
+                this.chartType = 'line';
+                this.performanceData = null;
+
+                this.initializeAnalysis();
+            }
+
+            initializeAnalysis() {
+                this.setupEventListeners();
+                this.generateMockData();
+                this.initializeCharts();
+                this.updateHeatmap();
+                this.updatePerformanceTable();
+                this.setDefaultDateRange();
+            }
+
+            setupEventListeners() {
+                document.getElementById('refreshBtn').addEventListener('click', () => this.refreshData());
+                document.getElementById('exportBtn').addEventListener('click', () => this.toggleExportMenu());
+
+                // Close export menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#exportBtn') && !e.target.closest('#exportMenu')) {
+                        document.getElementById('exportMenu').classList.add('hidden');
+                    }
+                });
+
+                // Date range inputs
+                document.getElementById('startDate').addEventListener('change', () => this.updateDateRange());
+                document.getElementById('endDate').addEventListener('change', () => this.updateDateRange());
+            }
+
+            generateMockData() {
+                const now = Date.now();
+                const days = this.getDateRangeDays();
+
+                this.performanceData = {
+                    portfolio: [],
+                    benchmark: [],
+                    dates: [],
+                    drawdowns: [],
+                    monthlyReturns: [],
+                    statistics: this.generateStatistics(days)
+                };
+
+                let portfolioValue = 100000;
+                let benchmarkValue = 100000;
+                let peak = portfolioValue;
+
+                for (let i = 0; i < days; i++) {
+                    const date = new Date(now - (days - i) * 24 * 60 * 60 * 1000);
+
+                    // Generate portfolio returns with some volatility
+                    const dailyReturn = (Math.random() - 0.48) * 0.03; // Slight upward bias
+                    portfolioValue *= (1 + dailyReturn);
+
+                    // Generate benchmark returns (lower performance)
+                    const benchmarkDailyReturn = (Math.random() - 0.5) * 0.025;
+                    benchmarkValue *= (1 + benchmarkDailyReturn);
+
+                    // Calculate drawdown
+                    if (portfolioValue > peak) {
+                        peak = portfolioValue;
+                    }
+                    const drawdown = ((portfolioValue - peak) / peak) * 100;
+
+                    this.performanceData.portfolio.push(portfolioValue);
+                    this.performanceData.benchmark.push(benchmarkValue);
+                    this.performanceData.drawdowns.push(drawdown);
+                    this.performanceData.dates.push(date);
+                }
+
+                // Generate monthly returns
+                this.generateMonthlyReturns();
+            }
+
+            generateMonthlyReturns() {
+                const monthlyMap = new Map();
+
+                this.performanceData.dates.forEach((date, index) => {
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+                    if (index === 0) {
+                        monthlyMap.set(monthKey, 0);
+                    } else {
+                        const prevValue = this.performanceData.portfolio[index - 1];
+                        const currentValue = this.performanceData.portfolio[index];
+                        const monthlyReturn = ((currentValue - prevValue) / prevValue) * 100;
+
+                        if (monthlyMap.has(monthKey)) {
+                            monthlyMap.set(monthKey, monthlyMap.get(monthKey) + monthlyReturn);
+                        } else {
+                            monthlyMap.set(monthKey, monthlyReturn);
+                        }
+                    }
+                });
+
+                this.performanceData.monthlyReturns = Array.from(monthlyMap.entries()).map(([month, return_pct]) => ({
+                    month,
+                    return_pct
+                }));
+            }
+
+            generateStatistics(days) {
+                return {
+                    totalReturn: 24.7,
+                    annualizedReturn: 18.3,
+                    sharpeRatio: 1.82,
+                    maxDrawdown: -8.2,
+                    volatility: 12.4,
+                    beta: 0.82,
+                    alpha: 6.5,
+                    winRate: 68.5,
+                    bestDay: 5.2,
+                    worstDay: -3.8,
+                    sortinoRatio: 2.41,
+                    calmarRatio: 2.23,
+                    var95: -2847
+                };
+            }
+
+            initializeCharts() {
+                this.initializePerformanceChart();
+                this.initializeRiskReturnChart();
+                this.initializeDrawdownChart();
+                this.initializeAllocationChart();
+            }
+
+            initializePerformanceChart() {
+                const ctx = document.getElementById('performanceChart').getContext('2d');
+
+                this.charts.set('performance', new Chart(ctx, {
+                    type: this.chartType,
+                    data: {
+                        labels: this.performanceData.dates.map(date => date.toLocaleDateString()),
+                        datasets: [{
+                            label: 'Portfolio',
+                            data: this.performanceData.portfolio,
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1,
+                            fill: true
+                        }, {
+                            label: 'S&P 500 Benchmark',
+                            data: this.performanceData.benchmark,
+                            borderColor: 'rgb(156, 163, 175)',
+                            backgroundColor: 'rgba(156, 163, 175, 0.1)',
+                            tension: 0.1,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: {
+                                labels: { color: 'white' }
+                            },
+                            zoom: {
+                                zoom: {
+                                    wheel: { enabled: true },
+                                    pinch: { enabled: true },
+                                    mode: 'x',
+                                },
+                                pan: {
+                                    enabled: true,
+                                    mode: 'x',
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const value = context.parsed.y;
+                                        const initialValue = context.datasetIndex === 0 ? 100000 : 100000;
+                                        const return_pct = ((value - initialValue) / initialValue) * 100;
+                                        return `${context.dataset.label}: $${value.toLocaleString()} (${return_pct >= 0 ? '+' : ''}${return_pct.toFixed(2)}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                ticks: {
+                                    color: 'white',
+                                    callback: (value) => `$${value.toLocaleString()}`
+                                },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                }));
+            }
+
+            initializeRiskReturnChart() {
+                const ctx = document.getElementById('riskReturnChart').getContext('2d');
+
+                this.charts.set('riskReturn', new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'Portfolio',
+                            data: [{x: 12.4, y: 18.3}],
+                            backgroundColor: 'rgb(59, 130, 246)',
+                            pointRadius: 8
+                        }, {
+                            label: 'Benchmark',
+                            data: [{x: 15.2, y: 12.1}],
+                            backgroundColor: 'rgb(156, 163, 175)',
+                            pointRadius: 8
+                        }, {
+                            label: 'Other Assets',
+                            data: [
+                                {x: 8.5, y: 14.2},
+                                {x: 18.7, y: 22.1},
+                                {x: 22.3, y: 16.8},
+                                {x: 10.1, y: 8.9}
+                            ],
+                            backgroundColor: 'rgba(156, 163, 175, 0.5)',
+                            pointRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: 'white' }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Risk (Volatility %)',
+                                    color: 'white'
+                                },
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Return (%)',
+                                    color: 'white'
+                                },
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                }));
+            }
+
+            initializeDrawdownChart() {
+                const ctx = document.getElementById('drawdownChart').getContext('2d');
+
+                this.charts.set('drawdown', new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: this.performanceData.dates.map(date => date.toLocaleDateString()),
+                        datasets: [{
+                            label: 'Drawdown',
+                            data: this.performanceData.drawdowns,
+                            borderColor: 'rgb(239, 68, 68)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: 'white' }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `Drawdown: ${context.parsed.y.toFixed(2)}%`
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Drawdown (%)',
+                                    color: 'white'
+                                },
+                                ticks: {
+                                    color: 'white',
+                                    callback: (value) => `${value.toFixed(1)}%`
+                                },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                }));
+            }
+
+            initializeAllocationChart() {
+                const ctx = document.getElementById('allocationChart').getContext('2d');
+
+                this.charts.set('allocation', new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Bitcoin', 'Ethereum', 'BNB', 'Other Cryptos', 'Cash'],
+                        datasets: [{
+                            data: [45, 25, 15, 10, 5],
+                            backgroundColor: [
+                                'rgba(251, 146, 60, 0.8)',
+                                'rgba(96, 165, 250, 0.8)',
+                                'rgba(251, 191, 36, 0.8)',
+                                'rgba(163, 230, 53, 0.8)',
+                                'rgba(156, 163, 175, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgb(251, 146, 60)',
+                                'rgb(96, 165, 250)',
+                                'rgb(251, 191, 36)',
+                                'rgb(163, 230, 53)',
+                                'rgb(156, 163, 175)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: 'white' }
+                            }
+                        }
+                    }
+                }));
+            }
+
+            updateHeatmap() {
+                const container = document.getElementById('heatmapContainer');
+                const monthlyReturns = this.performanceData.monthlyReturns;
+
+                // Group returns by year
+                const yearlyData = {};
+                monthlyReturns.forEach(item => {
+                    const [year, month] = item.month.split('-');
+                    if (!yearlyData[year]) {
+                        yearlyData[year] = {};
+                    }
+                    yearlyData[year][month] = item.return_pct;
+                });
+
+                // Create heatmap HTML
+                const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+                const years = Object.keys(yearlyData).sort();
+
+                let html = '<div class="inline-block"><table class="w-full"><thead><tr><th class="p-2"></th>';
+                months.forEach(month => {
+                    html += `<th class="p-2 text-xs text-gray-400">${month}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+
+                years.forEach(year => {
+                    html += `<tr><td class="p-2 text-sm font-bold">${year}</td>`;
+                    months.forEach(month => {
+                        const return_pct = yearlyData[year][month] || 0;
+                        const cellClass = return_pct > 2 ? 'heatmap-positive' :
+                                         return_pct < -2 ? 'heatmap-negative' :
+                                         'heatmap-neutral';
+                        html += `<td class="heatmap-cell ${cellClass}">${return_pct.toFixed(1)}%</td>`;
+                    });
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            }
+
+            updatePerformanceTable() {
+                const tbody = document.getElementById('performanceTable');
+                const stats = this.performanceData.statistics;
+
+                const metrics = [
+                    { name: 'Total Return (%)', values: [2.1, 8.4, 15.2, 24.7, 24.7] },
+                    { name: 'Annualized Return (%)', values: [25.2, 33.6, 30.4, 24.7, 18.3] },
+                    { name: 'Volatility (%)', values: [15.2, 13.8, 12.9, 12.4, 12.4] },
+                    { name: 'Sharpe Ratio', values: [1.66, 2.44, 2.36, 1.99, 1.82] },
+                    { name: 'Max Drawdown (%)', values: [-2.4, -5.8, -7.2, -8.2, -8.2] },
+                    { name: 'Win Rate (%)', values: [72.1, 69.4, 67.8, 68.5, 68.5] }
+                ];
+
+                tbody.innerHTML = metrics.map(metric => `
+                    <tr class="border-b border-gray-800">
+                        <td class="py-3 font-medium">${metric.name}</td>
+                        ${metric.values.map(value => {
+                            const valueClass = value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-gray-400';
+                            return `<td class="py-3 text-right ${valueClass}">${value >= 0 ? '+' : ''}${value}</td>`;
+                        }).join('')}
+                    </tr>
+                `).join('');
+            }
+
+            getDateRangeDays() {
+                const ranges = {
+                    '1D': 1,
+                    '1W': 7,
+                    '1M': 30,
+                    '3M': 90,
+                    '6M': 180,
+                    '1Y': 365,
+                    'ALL': 730
+                };
+                return ranges[this.currentDateRange] || 30;
+            }
+
+            setDefaultDateRange() {
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(endDate.getDate() - this.getDateRangeDays());
+
+                document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+                document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+            }
+
+            refreshData() {
+                // Show loading state
+                const btn = document.getElementById('refreshBtn');
+                const originalContent = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Loading...';
+                btn.disabled = true;
+
+                // Regenerate data
+                setTimeout(() => {
+                    this.generateMockData();
+                    this.updateAllCharts();
+                    this.updateHeatmap();
+                    this.updatePerformanceTable();
+
+                    // Restore button
+                    btn.innerHTML = originalContent;
+                    btn.disabled = false;
+
+                    // Show success message
+                    this.showNotification('Data refreshed successfully', 'success');
+                }, 1000);
+            }
+
+            updateAllCharts() {
+                // Update performance chart
+                const perfChart = this.charts.get('performance');
+                if (perfChart) {
+                    perfChart.data.labels = this.performanceData.dates.map(date => date.toLocaleDateString());
+                    perfChart.data.datasets[0].data = this.performanceData.portfolio;
+                    perfChart.data.datasets[1].data = this.performanceData.benchmark;
+                    perfChart.update();
+                }
+
+                // Update drawdown chart
+                const drawdownChart = this.charts.get('drawdown');
+                if (drawdownChart) {
+                    drawdownChart.data.labels = this.performanceData.dates.map(date => date.toLocaleDateString());
+                    drawdownChart.data.datasets[0].data = this.performanceData.drawdowns;
+                    drawdownChart.update();
+                }
+            }
+
+            toggleExportMenu() {
+                document.getElementById('exportMenu').classList.toggle('hidden');
+            }
+
+            showNotification(message, type = 'info') {
+                // Simple notification implementation
+                console.log(`${type}: ${message}`);
+            }
+        }
+
+        // Global functions
+        let performanceAnalysis;
+
+        function setDateRange(range) {
+            // Update button states
+            document.querySelectorAll('.date-range-selector button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-range="${range}"]`).classList.add('active');
+
+            // Update analysis
+            performanceAnalysis.currentDateRange = range;
+            performanceAnalysis.generateMockData();
+            performanceAnalysis.updateAllCharts();
+            performanceAnalysis.updateHeatmap();
+            performanceAnalysis.setDefaultDateRange();
+        }
+
+        function toggleChartType() {
+            performanceAnalysis.chartType = performanceAnalysis.chartType === 'line' ? 'bar' : 'line';
+
+            const chart = performanceAnalysis.charts.get('performance');
+            if (chart) {
+                chart.config.type = performanceAnalysis.chartType;
+                chart.update();
+            }
+        }
+
+        function resetZoom() {
+            const chart = performanceAnalysis.charts.get('performance');
+            if (chart) {
+                chart.resetZoom();
+            }
+        }
+
+        function updateDateRange() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if (startDate && endDate) {
+                // Custom date range logic would go here
+                console.log(`Custom range: ${startDate} to ${endDate}`);
+            }
+        }
+
+        function exportData(format) {
+            performanceAnalysis.showNotification(`Exporting data as ${format.toUpperCase()}...`, 'info');
+
+            // Hide export menu
+            document.getElementById('exportMenu').classList.add('hidden');
+
+            // Simulate export
+            setTimeout(() => {
+                performanceAnalysis.showNotification(`Data exported successfully as ${format.toUpperCase()}`, 'success');
+            }, 1500);
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            performanceAnalysis = new PerformanceAnalysis();
+        });
+    </script>
+</body>
+</html>

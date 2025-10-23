@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy Backtesting Lab - AI Trading Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@latest"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse-green {
+            0%, 100% { background-color: rgba(34, 197, 94, 0.1); }
+            50% { background-color: rgba(34, 197, 94, 0.3); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .backtest-card {
+            @apply glass-effect rounded-lg p-6 hover:shadow-xl transition-all duration-200;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .strategy-card {
+            @apply bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-blue-500 transition-all duration-200 cursor-pointer;
+        }
+
+        .strategy-card.active {
+            @apply border-blue-500 bg-blue-500 bg-opacity-10;
+        }
+
+        .parameter-slider {
+            @apply w-full bg-gray-700 rounded-lg appearance-none h-2;
+        }
+
+        .parameter-slider::-webkit-slider-thumb {
+            @apply appearance-none w-4 h-4 bg-blue-500 rounded cursor-pointer;
+        }
+
+        .parameter-slider::-moz-range-thumb {
+            @apply w-4 h-4 bg-blue-500 rounded cursor-pointer border-none;
+        }
+
+        .results-panel {
+            @apply glass-effect rounded-lg p-6;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .metric-positive { @apply text-green-400; }
+        .metric-negative { @apply text-red-400; }
+        .metric-neutral { @apply text-gray-400; }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+
+        .mini-chart {
+            height: 150px;
+        }
+
+        .trade-entry {
+            @apply flex items-center justify-between p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors;
+        }
+
+        .running-indicator {
+            @apply w-2 h-2 bg-green-500 rounded-full animate-pulse;
+        }
+
+        .progress-bar {
+            @apply w-full bg-gray-700 rounded-full h-2;
+        }
+
+        .progress-fill {
+            @apply bg-blue-500 h-2 rounded-full transition-all duration-300;
+        }
+
+        @media (max-width: 768px) {
+            .chart-container { height: 300px; }
+            .backtest-card { @apply p-4; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-40">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-flask text-2xl text-purple-400"></i>
+                    <div>
+                        <h1 class="text-xl md:text-2xl font-bold">Backtesting Lab</h1>
+                        <p class="text-xs md:text-sm text-gray-400">Strategy Testing & Optimization</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 md:space-x-4">
+                    <button id="newStrategyBtn" class="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                        <i class="fas fa-plus mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">New Strategy</span>
+                    </button>
+                    <button id="runBacktestBtn" class="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                        <i class="fas fa-play mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Run Test</span>
+                    </button>
+                    <button id="saveResultsBtn" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                        <i class="fas fa-save mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Save</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Panel - Strategy Configuration -->
+            <div class="lg:col-span-1">
+                <!-- Strategy Selection -->
+                <div class="backtest-card mb-6">
+                    <h2 class="text-lg font-bold mb-4">Select Strategy</h2>
+                    <div class="space-y-3" id="strategyList">
+                        <div class="strategy-card active" data-strategy="arbitrage">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-semibold">Arbitrage Master</h3>
+                                    <p class="text-xs text-gray-400">Multi-exchange arbitrage</p>
+                                </div>
+                                <i class="fas fa-coins text-purple-400"></i>
+                            </div>
+                        </div>
+                        <div class="strategy-card" data-strategy="trend-following">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-semibold">Trend Following</h3>
+                                    <p class="text-xs text-gray-400">Moving average crossover</p>
+                                </div>
+                                <i class="fas fa-chart-line text-blue-400"></i>
+                            </div>
+                        </div>
+                        <div class="strategy-card" data-strategy="mean-reversion">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-semibold">Mean Reversion</h3>
+                                    <p class="text-xs text-gray-400">Bollinger bands strategy</p>
+                                </div>
+                                <i class="fas fa-balance-scale text-green-400"></i>
+                            </div>
+                        </div>
+                        <div class="strategy-card" data-strategy="ai-predictor">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-semibold">AI Predictor</h3>
+                                    <p class="text-xs text-gray-400">Machine learning based</p>
+                                </div>
+                                <i class="fas fa-robot text-orange-400"></i>
+                            </div>
+                        </div>
+                        <div class="strategy-card" data-strategy="scalping">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-semibold">Scalper Pro</h3>
+                                    <p class="text-xs text-gray-400">High-frequency trading</p>
+                                </div>
+                                <i class="fas fa-bolt text-yellow-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Backtest Parameters -->
+                <div class="backtest-card mb-6">
+                    <h2 class="text-lg font-bold mb-4">Backtest Parameters</h2>
+
+                    <!-- Time Period -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Time Period</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-xs text-gray-400">Start Date</label>
+                                <input type="date" id="startDate" class="w-full bg-gray-700 rounded px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400">End Date</label>
+                                <input type="date" id="endDate" class="w-full bg-gray-700 rounded px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Initial Capital -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Initial Capital</label>
+                        <div class="flex items-center space-x-2">
+                            <input type="range" id="initialCapital" class="parameter-slider flex-1" min="10000" max="1000000" step="10000" value="100000">
+                            <span id="capitalValue" class="text-sm font-bold w-20 text-right">$100,000</span>
+                        </div>
+                    </div>
+
+                    <!-- Risk Management -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Risk Management</label>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-xs">Max Position Size (%)</span>
+                                    <span id="positionSizeValue" class="text-xs">10%</span>
+                                </div>
+                                <input type="range" id="maxPositionSize" class="parameter-slider w-full" min="1" max="50" step="1" value="10">
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-xs">Stop Loss (%)</span>
+                                    <span id="stopLossValue" class="text-xs">2%</span>
+                                </div>
+                                <input type="range" id="stopLoss" class="parameter-slider w-full" min="0.5" max="10" step="0.5" value="2">
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-xs">Take Profit (%)</span>
+                                    <span id="takeProfitValue" class="text-xs">4%</span>
+                                </div>
+                                <input type="range" id="takeProfit" class="parameter-slider w-full" min="1" max="20" step="0.5" value="4">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Strategy-Specific Parameters -->
+                    <div class="mb-4" id="strategyParams">
+                        <label class="block text-sm font-medium mb-2">Strategy Parameters</label>
+                        <div class="space-y-3" id="paramControls">
+                            <!-- Dynamic parameters will be added here -->
+                        </div>
+                    </div>
+
+                    <!-- Optimization Settings -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Optimization</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" id="enableOptimization" class="mr-2">
+                                <span class="text-sm">Enable Parameter Optimization</span>
+                            </label>
+                            <div id="optimizationOptions" class="ml-6 space-y-2 hidden">
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="geneticAlgorithm" class="mr-2">
+                                    <span class="text-sm">Genetic Algorithm</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="gridSearch" class="mr-2">
+                                    <span class="text-sm">Grid Search</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Results -->
+            <div class="lg:col-span-2">
+                <!-- Running Status -->
+                <div id="runningStatus" class="backtest-card mb-6 hidden">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center">
+                            <div class="running-indicator mr-3"></div>
+                            <div>
+                                <h3 class="font-semibold">Running Backtest...</h3>
+                                <p class="text-xs text-gray-400" id="statusMessage">Processing historical data</p>
+                            </div>
+                        </div>
+                        <button id="cancelBacktest" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm">
+                            Cancel
+                        </button>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="mt-2 text-right text-xs text-gray-400">
+                        <span id="progressText">0% Complete</span>
+                    </div>
+                </div>
+
+                <!-- Key Results -->
+                <div class="results-panel mb-6">
+                    <h2 class="text-xl font-bold mb-4">Backtest Results</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="text-center">
+                            <p class="text-gray-400 text-sm">Total Return</p>
+                            <p id="totalReturn" class="text-2xl font-bold metric-positive">+0%</p>
+                            <p id="returnBench" class="text-xs text-gray-400">vs: +0%</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-gray-400 text-sm">Sharpe Ratio</p>
+                            <p id="sharpeRatio" class="text-2xl font-bold metric-neutral">0.00</p>
+                            <p class="text-xs text-gray-400">Risk-adjusted</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-gray-400 text-sm">Max Drawdown</p>
+                            <p id="maxDrawdown" class="text-2xl font-bold metric-negative">0%</p>
+                            <p class="text-xs text-gray-400">Peak to trough</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-gray-400 text-sm">Win Rate</p>
+                            <p id="winRate" class="text-2xl font-bold metric-neutral">0%</p>
+                            <p id="totalTrades" class="text-xs text-gray-400">0 trades</p>
+                        </div>
+                    </div>
+
+                    <!-- Performance Chart -->
+                    <div class="chart-container mb-6">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+
+                    <!-- Detailed Metrics -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div class="bg-gray-800 rounded-lg p-4">
+                            <h3 class="font-semibold mb-3">Performance Metrics</h3>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Annualized Return</span>
+                                    <span id="annualizedReturn" class="font-bold">0%</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Volatility</span>
+                                    <span id="volatility" class="font-bold">0%</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Sortino Ratio</span>
+                                    <span id="sortinoRatio" class="font-bold">0.00</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Calmar Ratio</span>
+                                    <span id="calmarRatio" class="font-bold">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-800 rounded-lg p-4">
+                            <h3 class="font-semibold mb-3">Trade Statistics</h3>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Total Trades</span>
+                                    <span id="totalTradesStat" class="font-bold">0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Winning Trades</span>
+                                    <span id="winningTrades" class="font-bold">0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Losing Trades</span>
+                                    <span id="losingTrades" class="font-bold">0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Avg Win/Loss Ratio</span>
+                                    <span id="avgWinLoss" class="font-bold">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Trades -->
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-semibold">Recent Trades</h3>
+                            <button id="viewAllTrades" class="text-blue-400 hover:text-blue-300 text-sm">
+                                View All
+                            </button>
+                        </div>
+                        <div id="recentTrades" class="space-y-2 max-h-60 overflow-y-auto">
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fas fa-history text-4xl mb-2 opacity-50"></i>
+                                <p>No trades yet</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Backtesting Lab System
+        class BacktestingLab {
+            constructor() {
+                this.charts = new Map();
+                this.selectedStrategy = 'arbitrage';
+                this.isRunning = false;
+                this.backtestResults = null;
+
+                this.strategies = {
+                    arbitrage: {
+                        name: 'Arbitrage Master',
+                        parameters: {
+                            minProfitThreshold: { type: 'range', min: 0.1, max: 5, step: 0.1, default: 0.5, label: 'Min Profit %' },
+                            maxPositionSize: { type: 'range', min: 100, max: 10000, step: 100, default: 1000, label: 'Max Position $' },
+                            executionDelay: { type: 'range', min: 0, max: 5000, step: 100, default: 500, label: 'Execution Delay ms' }
+                        }
+                    },
+                    'trend-following': {
+                        name: 'Trend Following',
+                        parameters: {
+                            fastMA: { type: 'range', min: 5, max: 50, step: 1, default: 12, label: 'Fast MA Period' },
+                            slowMA: { type: 'range', min: 20, max: 200, step: 1, default: 50, label: 'Slow MA Period' },
+                            signalThreshold: { type: 'range', min: 0.01, max: 0.1, step: 0.01, default: 0.02, label: 'Signal Threshold' }
+                        }
+                    },
+                    'mean-reversion': {
+                        name: 'Mean Reversion',
+                        parameters: {
+                            bbPeriod: { type: 'range', min: 10, max: 50, step: 1, default: 20, label: 'BB Period' },
+                            bbStdDev: { type: 'range', min: 1, max: 3, step: 0.1, default: 2, label: 'BB Std Dev' },
+                            rsiPeriod: { type: 'range', min: 10, max: 30, step: 1, default: 14, label: 'RSI Period' },
+                            rsiOversold: { type: 'range', min: 20, max: 40, step: 1, default: 30, label: 'RSI Oversold' },
+                            rsiOverbought: { type: 'range', min: 60, max: 80, step: 1, default: 70, label: 'RSI Overbought' }
+                        }
+                    },
+                    'ai-predictor': {
+                        name: 'AI Predictor',
+                        parameters: {
+                            confidenceThreshold: { type: 'range', min: 0.5, max: 0.95, step: 0.05, default: 0.7, label: 'Confidence Threshold' },
+                            predictionHorizon: { type: 'range', min: 1, max: 24, step: 1, default: 4, label: 'Horizon Hours' },
+                            ensembleSize: { type: 'range', min: 1, max: 10, step: 1, default: 3, label: 'Ensemble Size' }
+                        }
+                    },
+                    scalping: {
+                        name: 'Scalper Pro',
+                        parameters: {
+                            tickSize: { type: 'range', min: 0.0001, max: 0.01, step: 0.0001, default: 0.001, label: 'Tick Size' },
+                            holdingPeriod: { type: 'range', min: 1, max: 60, step: 1, default: 5, label: 'Max Hold Seconds' },
+                            volumeThreshold: { type: 'range', min: 1000000, max: 10000000, step: 100000, default: 5000000, label: 'Min Volume' }
+                        }
+                    }
+                };
+
+                this.initializeLab();
+            }
+
+            initializeLab() {
+                this.setupEventListeners();
+                this.initializeCharts();
+                this.setDefaultDates();
+                this.loadStrategyParameters();
+            }
+
+            setupEventListeners() {
+                // Strategy selection
+                document.querySelectorAll('.strategy-card').forEach(card => {
+                    card.addEventListener('click', () => this.selectStrategy(card.dataset.strategy));
+                });
+
+                // Parameter sliders
+                document.getElementById('initialCapital').addEventListener('input', (e) => {
+                    document.getElementById('capitalValue').textContent = `$${parseInt(e.target.value).toLocaleString()}`;
+                });
+
+                document.getElementById('maxPositionSize').addEventListener('input', (e) => {
+                    document.getElementById('positionSizeValue').textContent = `${e.target.value}%`;
+                });
+
+                document.getElementById('stopLoss').addEventListener('input', (e) => {
+                    document.getElementById('stopLossValue').textContent = `${e.target.value}%`;
+                });
+
+                document.getElementById('takeProfit').addEventListener('input', (e) => {
+                    document.getElementById('takeProfitValue').textContent = `${e.target.value}%`;
+                });
+
+                // Buttons
+                document.getElementById('runBacktestBtn').addEventListener('click', () => this.runBacktest());
+                document.getElementById('cancelBacktest').addEventListener('click', () => this.cancelBacktest());
+                document.getElementById('saveResultsBtn').addEventListener('click', () => this.saveResults());
+                document.getElementById('viewAllTrades').addEventListener('click', () => this.viewAllTrades());
+
+                // Optimization
+                document.getElementById('enableOptimization').addEventListener('change', (e) => {
+                    document.getElementById('optimizationOptions').classList.toggle('hidden', !e.target.checked);
+                });
+            }
+
+            selectStrategy(strategy) {
+                this.selectedStrategy = strategy;
+
+                // Update UI
+                document.querySelectorAll('.strategy-card').forEach(card => {
+                    card.classList.remove('active');
+                });
+                document.querySelector(`[data-strategy="${strategy}"]`).classList.add('active');
+
+                // Load strategy parameters
+                this.loadStrategyParameters();
+            }
+
+            loadStrategyParameters() {
+                const container = document.getElementById('paramControls');
+                const strategy = this.strategies[this.selectedStrategy];
+
+                container.innerHTML = Object.entries(strategy.parameters).map(([key, param]) => `
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs text-gray-400">${param.label}</span>
+                            <span class="text-xs font-bold" id="${key}Value">${param.default}</span>
+                        </div>
+                        <input type="${param.type}"
+                               id="${key}"
+                               class="parameter-slider w-full"
+                               min="${param.min}"
+                               max="${param.max}"
+                               step="${param.step}"
+                               value="${param.default}"
+                               oninput="document.getElementById('${key}Value').textContent = this.value">
+                    </div>
+                `).join('');
+            }
+
+            initializeCharts() {
+                const ctx = document.getElementById('performanceChart').getContext('2d');
+
+                this.charts.set('performance', new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Strategy Equity',
+                            data: [],
+                            borderColor: 'rgb(147, 51, 234)',
+                            backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                            tension: 0.1,
+                            fill: true
+                        }, {
+                            label: 'Buy & Hold',
+                            data: [],
+                            borderColor: 'rgb(156, 163, 175)',
+                            backgroundColor: 'rgba(156, 163, 175, 0.1)',
+                            tension: 0.1,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: 'white' }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const value = context.parsed.y;
+                                        return `${context.dataset.label}: $${value.toLocaleString()}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                ticks: {
+                                    color: 'white',
+                                    callback: (value) => `$${value.toLocaleString()}`
+                                },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                }));
+            }
+
+            setDefaultDates() {
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setFullYear(endDate.getFullYear() - 1);
+
+                document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+                document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+            }
+
+            async runBacktest() {
+                if (this.isRunning) return;
+
+                this.isRunning = true;
+                this.showRunningStatus();
+
+                const params = this.getBacktestParameters();
+
+                try {
+                    // Simulate backtest processing
+                    await this.simulateBacktest(params);
+
+                    // Generate results
+                    this.generateResults(params);
+
+                    // Update UI with results
+                    this.updateResults();
+
+                } catch (error) {
+                    console.error('Backtest failed:', error);
+                    this.showError('Backtest failed: ' + error.message);
+                } finally {
+                    this.isRunning = false;
+                    this.hideRunningStatus();
+                }
+            }
+
+            getBacktestParameters() {
+                return {
+                    strategy: this.selectedStrategy,
+                    startDate: document.getElementById('startDate').value,
+                    endDate: document.getElementById('endDate').value,
+                    initialCapital: parseInt(document.getElementById('initialCapital').value),
+                    maxPositionSize: parseInt(document.getElementById('maxPositionSize').value),
+                    stopLoss: parseFloat(document.getElementById('stopLoss').value),
+                    takeProfit: parseFloat(document.getElementById('takeProfit').value),
+                    strategyParams: this.getStrategySpecificParams()
+                };
+            }
+
+            getStrategySpecificParams() {
+                const strategy = this.strategies[this.selectedStrategy];
+                const params = {};
+
+                Object.keys(strategy.parameters).forEach(key => {
+                    const element = document.getElementById(key);
+                    if (element) {
+                        params[key] = parseFloat(element.value);
+                    }
+                });
+
+                return params;
+            }
+
+            showRunningStatus() {
+                document.getElementById('runningStatus').classList.remove('hidden');
+                this.updateProgress(0, 'Initializing backtest...');
+            }
+
+            hideRunningStatus() {
+                document.getElementById('runningStatus').classList.add('hidden');
+            }
+
+            updateProgress(percent, message) {
+                document.getElementById('progressFill').style.width = `${percent}%`;
+                document.getElementById('progressText').textContent = `${percent}% Complete`;
+                document.getElementById('statusMessage').textContent = message;
+            }
+
+            async simulateBacktest(params) {
+                const steps = [
+                    { percent: 10, message: 'Loading historical data...', delay: 500 },
+                    { percent: 25, message: 'Processing market data...', delay: 1000 },
+                    { percent: 40, message: 'Applying strategy logic...', delay: 1500 },
+                    { percent: 60, message: 'Executing trades...', delay: 2000 },
+                    { percent: 80, message: 'Calculating performance...', delay: 1000 },
+                    { percent: 95, message: 'Generating analytics...', delay: 800 },
+                    { percent: 100, message: 'Finalizing results...', delay: 500 }
+                ];
+
+                for (const step of steps) {
+                    this.updateProgress(step.percent, step.message);
+                    await new Promise(resolve => setTimeout(resolve, step.delay));
+                }
+            }
+
+            generateResults(params) {
+                const numDays = Math.floor((new Date(params.endDate) - new Date(params.startDate)) / (1000 * 60 * 60 * 24));
+                const dailyReturns = this.generateRandomReturns(numDays, 0.001, 0.03);
+
+                let portfolioValue = params.initialCapital;
+                let benchmarkValue = params.initialCapital;
+                const portfolioValues = [portfolioValue];
+                const benchmarkValues = [benchmarkValue];
+
+                dailyReturns.forEach(return_pct => {
+                    portfolioValue *= (1 + return_pct);
+                    benchmarkValue *= (1 + (return_pct * 0.7)); // Underperform benchmark
+                    portfolioValues.push(portfolioValue);
+                    benchmarkValues.push(benchmarkValue);
+                });
+
+                const totalReturn = ((portfolioValue - params.initialCapital) / params.initialCapital) * 100;
+                const benchmarkReturn = ((benchmarkValue - params.initialCapital) / params.initialCapital) * 100;
+
+                // Generate additional metrics
+                const trades = this.generateMockTrades(50, totalReturn);
+                const winRate = (trades.filter(t => t.pnl > 0).length / trades.length) * 100;
+
+                this.backtestResults = {
+                    portfolioValues,
+                    benchmarkValues,
+                    trades,
+                    metrics: {
+                        totalReturn,
+                        benchmarkReturn,
+                        annualizedReturn: Math.pow(1 + totalReturn / 100, 365 / numDays) - 1,
+                        volatility: this.calculateVolatility(dailyReturns) * 100,
+                        maxDrawdown: this.calculateMaxDrawdown(portfolioValues),
+                        sharpeRatio: this.calculateSharpeRatio(dailyReturns),
+                        sortinoRatio: this.calculateSortinoRatio(dailyReturns),
+                        calmarRatio: totalReturn / Math.abs(this.calculateMaxDrawdown(portfolioValues)),
+                        winRate,
+                        totalTrades: trades.length,
+                        winningTrades: trades.filter(t => t.pnl > 0).length,
+                        losingTrades: trades.filter(t => t.pnl < 0).length,
+                        avgWinLoss: trades.reduce((sum, t) => sum + t.pnl, 0) / trades.length
+                    }
+                };
+            }
+
+            generateRandomReturns(count, min, max) {
+                const returns = [];
+                for (let i = 0; i < count; i++) {
+                    returns.push (Math.random() - 0.45) * (max - min) + min; // Slight positive bias
+                }
+                return returns;
+            }
+
+            generateMockTrades(count, totalReturn) {
+                const trades = [];
+                let cumulativePnl = 0;
+
+                for (let i = 0; i < count; i++) {
+                    const pnl = (Math.random() - 0.3) * (totalReturn / count * 2); // Some variation around average
+                    cumulativePnl += pnl;
+
+                    trades.push({
+                        id: i + 1,
+                        symbol: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'][Math.floor(Math.random() * 3)],
+                        side: Math.random() > 0.5 ? 'Long' : 'Short',
+                        entryPrice: 45000 + Math.random() * 5000,
+                        exitPrice: 45000 + Math.random() * 5000,
+                        quantity: 0.1 + Math.random() * 0.5,
+                        pnl,
+                        timestamp: new Date(Date.now() - (count - i) * 24 * 60 * 60 * 1000)
+                    });
+                }
+
+                return trades;
+            }
+
+            calculateVolatility(returns) {
+                const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+                const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+                return Math.sqrt(variance);
+            }
+
+            calculateMaxDrawdown(values) {
+                let peak = values[0];
+                let maxDrawdown = 0;
+
+                for (const value of values) {
+                    if (value > peak) {
+                        peak = value;
+                    }
+                    const drawdown = ((value - peak) / peak) * 100;
+                    if (drawdown < maxDrawdown) {
+                        maxDrawdown = drawdown;
+                    }
+                }
+
+                return maxDrawdown;
+            }
+
+            calculateSharpeRatio(returns) {
+                const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+                const volatility = this.calculateVolatility(returns);
+                return volatility > 0 ? (mean / volatility) * Math.sqrt(252) : 0; // Annualized
+            }
+
+            calculateSortinoRatio(returns) {
+                const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+                const downsideReturns = returns.filter(r => r < 0);
+                const downsideDeviation = downsideReturns.length > 0 ?
+                    Math.sqrt(downsideReturns.reduce((sum, r) => sum + r * r, 0) / downsideReturns.length) : 0;
+                return downsideDeviation > 0 ? (mean / downsideDeviation) * Math.sqrt(252) : 0;
+            }
+
+            updateResults() {
+                const results = this.backtestResults;
+                const metrics = results.metrics;
+
+                // Update key metrics
+                document.getElementById('totalReturn').textContent = `${metrics.totalReturn >= 0 ? '+' : ''}${metrics.totalReturn.toFixed(2)}%`;
+                document.getElementById('totalReturn').className = `text-2xl font-bold ${metrics.totalReturn >= 0 ? 'metric-positive' : 'metric-negative'}`;
+
+                document.getElementById('returnBench').textContent = `vs: ${metrics.benchmarkReturn >= 0 ? '+' : ''}${metrics.benchmarkReturn.toFixed(2)}%`;
+
+                document.getElementById('sharpeRatio').textContent = metrics.sharpeRatio.toFixed(2);
+                document.getElementById('sharpeRatio').className = `text-2xl font-bold ${metrics.sharpeRatio > 1 ? 'metric-positive' : metrics.sharpeRatio > 0 ? 'metric-neutral' : 'metric-negative'}`;
+
+                document.getElementById('maxDrawdown').textContent = `${metrics.maxDrawdown.toFixed(2)}%`;
+                document.getElementById('maxDrawdown').className = `text-2xl font-bold metric-negative`;
+
+                document.getElementById('winRate').textContent = `${metrics.winRate.toFixed(1)}%`;
+                document.getElementById('winRate').className = `text-2xl font-bold ${metrics.winRate > 50 ? 'metric-positive' : 'metric-negative'}`;
+
+                document.getElementById('totalTrades').textContent = `${metrics.totalTrades} trades`;
+
+                // Update detailed metrics
+                document.getElementById('annualizedReturn').textContent = `${(metrics.annualizedReturn * 100).toFixed(2)}%`;
+                document.getElementById('volatility').textContent = `${metrics.volatility.toFixed(2)}%`;
+                document.getElementById('sortinoRatio').textContent = metrics.sortinoRatio.toFixed(2);
+                document.getElementById('calmarRatio').textContent = metrics.calmarRatio.toFixed(2);
+
+                document.getElementById('totalTradesStat').textContent = metrics.totalTrades;
+                document.getElementById('winningTrades').textContent = metrics.winningTrades;
+                document.getElementById('losingTrades').textContent = metrics.losingTrades;
+                document.getElementById('avgWinLoss').textContent = `$${metrics.avgWinLoss.toFixed(2)}`;
+
+                // Update chart
+                this.updatePerformanceChart();
+
+                // Update recent trades
+                this.updateRecentTrades();
+            }
+
+            updatePerformanceChart() {
+                const chart = this.charts.get('performance');
+                if (chart && this.backtestResults) {
+                    const dates = [];
+                    const startDate = new Date(document.getElementById('startDate').value);
+
+                    for (let i = 0; i < this.backtestResults.portfolioValues.length; i++) {
+                        const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+                        dates.push(date.toLocaleDateString());
+                    }
+
+                    chart.data.labels = dates;
+                    chart.data.datasets[0].data = this.backtestResults.portfolioValues;
+                    chart.data.datasets[1].data = this.backtestResults.benchmarkValues;
+                    chart.update();
+                }
+            }
+
+            updateRecentTrades() {
+                const container = document.getElementById('recentTrades');
+                const trades = this.backtestResults.trades.slice(-10).reverse();
+
+                if (trades.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-8 text-gray-400">
+                            <i class="fas fa-history text-4xl mb-2 opacity-50"></i>
+                            <p>No trades yet</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = trades.map(trade => `
+                    <div class="trade-entry">
+                        <div class="flex items-center">
+                            <span class="font-mono font-semibold">${trade.symbol}</span>
+                            <span class="ml-2 px-2 py-1 text-xs ${trade.side === 'Long' ? 'bg-green-500' : 'bg-red-500'} bg-opacity-20 ${trade.side === 'Long' ? 'text-green-400' : 'text-red-400'} rounded">
+                                ${trade.side}
+                            </span>
+                        </div>
+                        <div class="text-right">
+                            <div class="${trade.pnl >= 0 ? 'text-green-400' : 'text-red-400'} font-bold">
+                                ${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}
+                            </div>
+                            <div class="text-xs text-gray-400">
+                                ${trade.timestamp.toLocaleDateString()}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            cancelBacktest() {
+                this.isRunning = false;
+                this.hideRunningStatus();
+                this.showNotification('Backtest cancelled', 'warning');
+            }
+
+            saveResults() {
+                if (!this.backtestResults) {
+                    this.showNotification('No results to save', 'error');
+                    return;
+                }
+
+                // Simulate saving results
+                this.showNotification('Saving backtest results...', 'info');
+
+                setTimeout(() => {
+                    this.showNotification('Results saved successfully', 'success');
+                }, 1000);
+            }
+
+            viewAllTrades() {
+                // In a real implementation, this would open a detailed trades modal
+                this.showNotification('Opening detailed trades view...', 'info');
+            }
+
+            showNotification(message, type) {
+                console.log(`${type}: ${message}`);
+            }
+
+            showError(message) {
+                this.showNotification(message, 'error');
+            }
+        }
+
+        // Initialize backtesting lab
+        let backtestingLab;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            backtestingLab = new BacktestingLab();
+        });
+    </script>
+</body>
+</html>

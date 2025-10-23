@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customizable Widget Dashboard - AI Trading Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse-red {
+            0%, 100% { background-color: rgba(239, 68, 68, 0.1); }
+            50% { background-color: rgba(239, 68, 68, 0.3); }
+        }
+        @keyframes pulse-green {
+            0%, 100% { background-color: rgba(34, 197, 94, 0.1); }
+            50% { background-color: rgba(34, 197, 94, 0.3); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .widget-card {
+            @apply bg-gray-800 rounded-lg p-4 shadow-lg transition-all duration-200 hover:shadow-xl;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .widget-dragging {
+            @apply opacity-50 scale-105 shadow-2xl;
+            transform: rotate(2deg);
+        }
+
+        .widget-placeholder {
+            @apply bg-gray-700 border-2 border-dashed border-gray-600 rounded-lg;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sortable-ghost {
+            @apply bg-blue-900 bg-opacity-20 border-2 border-blue-500;
+        }
+
+        .widget-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            grid-auto-flow: dense;
+        }
+
+        .widget-large {
+            grid-column: span 2;
+            grid-row: span 2;
+        }
+
+        .widget-wide {
+            grid-column: span 2;
+        }
+
+        .widget-tall {
+            grid-row: span 2;
+        }
+
+        .widget-controls {
+            @apply absolute top-2 right-2 opacity-0 transition-opacity duration-200;
+        }
+
+        .widget-card:hover .widget-controls {
+            @apply opacity-100;
+        }
+
+        .resize-handle {
+            @apply absolute bottom-2 right-2 w-4 h-4 bg-gray-600 rounded cursor-se-resize opacity-50 hover:opacity-100;
+        }
+
+        .widget-menu {
+            @apply absolute bg-gray-700 rounded-lg shadow-xl p-2 z-50 min-w-40;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .mini-chart {
+            height: 100px;
+        }
+
+        .metric-value {
+            @apply text-2xl font-bold;
+        }
+
+        .metric-change {
+            @apply text-sm font-medium;
+        }
+
+        .positive { @apply text-green-400; }
+        .negative { @apply text-red-400; }
+        .neutral { @apply text-gray-400; }
+
+        @media (max-width: 768px) {
+            .widget-grid {
+                grid-template-columns: 1fr;
+            }
+            .widget-large, .widget-wide {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-40">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-th-large text-2xl text-blue-400"></i>
+                    <div>
+                        <h1 class="text-xl md:text-2xl font-bold">Widget Dashboard</h1>
+                        <p class="text-xs md:text-sm text-gray-400">Customizable Trading Interface</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 md:space-x-4">
+                    <button id="addWidgetBtn" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                        <i class="fas fa-plus mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Add Widget</span>
+                    </button>
+                    <button id="layoutModeBtn" class="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg transition-colors text-sm">
+                        <i class="fas fa-grip mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Layout</span>
+                    </button>
+                    <button id="refreshWidgetsBtn" class="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                        <i class="fas fa-sync-alt mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Refresh</span>
+                    </button>
+                    <button id="resetLayoutBtn" class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                        <i class="fas fa-undo mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Reset</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Widget Selection Modal -->
+    <div id="widgetModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-bold">Add Widget</h3>
+                    <button id="closeWidgetModal" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Widget options will be added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- Quick Stats Row -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="widget-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Portfolio Value</p>
+                        <p class="metric-value text-blue-400">$125,430</p>
+                        <p class="metric-change positive">+2.4%</p>
+                    </div>
+                    <i class="fas fa-wallet text-2xl text-blue-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="widget-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Today's P&L</p>
+                        <p class="metric-value text-green-400">+$2,847</p>
+                        <p class="metric-change positive">+8.2%</p>
+                    </div>
+                    <i class="fas fa-chart-line text-2xl text-green-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="widget-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Active Positions</p>
+                        <p class="metric-value text-yellow-400">7</p>
+                        <p class="metric-change neutral">3 Long, 4 Short</p>
+                    </div>
+                    <i class="fas fa-exchange-alt text-2xl text-yellow-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="widget-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Win Rate</p>
+                        <p class="metric-value text-purple-400">68.5%</p>
+                        <p class="metric-change positive">+5.2%</p>
+                    </div>
+                    <i class="fas fa-percentage text-2xl text-purple-400 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Widget Grid -->
+        <div id="widgetGrid" class="widget-grid">
+            <!-- Widgets will be dynamically added here -->
+        </div>
+    </main>
+
+    <script>
+        // Widget Dashboard System
+        class WidgetDashboard {
+            constructor() {
+                this.widgets = new Map();
+                this.charts = new Map();
+                this.isLayoutMode = false;
+                this.sortable = null;
+                this.widgetCounter = 0;
+
+                this.widgetTypes = {
+                    'portfolio-overview': {
+                        name: 'Portfolio Overview',
+                        icon: 'fa-wallet',
+                        description: 'Complete portfolio summary with allocations',
+                        defaultSize: 'wide'
+                    },
+                    'performance-chart': {
+                        name: 'Performance Chart',
+                        icon: 'fa-chart-line',
+                        description: 'Historical performance visualization',
+                        defaultSize: 'large'
+                    },
+                    'active-positions': {
+                        name: 'Active Positions',
+                        icon: 'fa-exchange-alt',
+                        description: 'Current trading positions',
+                        defaultSize: 'tall'
+                    },
+                    'market-overview': {
+                        name: 'Market Overview',
+                        icon: 'fa-globe',
+                        description: 'Global market statistics',
+                        defaultSize: 'normal'
+                    },
+                    'arbitrage-opportunities': {
+                        name: 'Arbitrage Scanner',
+                        icon: 'fa-coins',
+                        description: 'Real-time arbitrage opportunities',
+                        defaultSize: 'wide'
+                    },
+                    'risk-metrics': {
+                        name: 'Risk Metrics',
+                        icon: 'fa-shield-alt',
+                        description: 'Risk assessment and limits',
+                        defaultSize: 'normal'
+                    },
+                    'recent-trades': {
+                        name: 'Recent Trades',
+                        icon: 'fa-history',
+                        description: 'Latest trading activity',
+                        defaultSize: 'normal'
+                    },
+                    'news-feed': {
+                        name: 'Market News',
+                        icon: 'fa-newspaper',
+                        description: 'Latest market news and updates',
+                        defaultSize: 'tall'
+                    },
+                    'alerts-panel': {
+                        name: 'Alerts Panel',
+                        icon: 'fa-bell',
+                        description: 'System alerts and notifications',
+                        defaultSize: 'normal'
+                    },
+                    'order-book': {
+                        name: 'Order Book',
+                        icon: 'fa-list',
+                        description: 'Live order book depth',
+                        defaultSize: 'large'
+                    },
+                    'technical-analysis': {
+                        name: 'Technical Analysis',
+                        icon: 'fa-chart-area',
+                        description: 'Technical indicators and analysis',
+                        defaultSize: 'wide'
+                    },
+                    'sentiment-analysis': {
+                        name: 'Market Sentiment',
+                        icon: 'fa-users',
+                        description: 'Market sentiment indicators',
+                        defaultSize: 'normal'
+                    }
+                };
+
+                this.initializeDashboard();
+            }
+
+            initializeDashboard() {
+                this.setupEventListeners();
+                this.loadDefaultWidgets();
+                this.setupSortable();
+                this.startDataUpdates();
+            }
+
+            setupEventListeners() {
+                document.getElementById('addWidgetBtn').addEventListener('click', () => this.openWidgetModal());
+                document.getElementById('closeWidgetModal').addEventListener('click', () => this.closeWidgetModal());
+                document.getElementById('layoutModeBtn').addEventListener('click', () => this.toggleLayoutMode());
+                document.getElementById('refreshWidgetsBtn').addEventListener('click', () => this.refreshAllWidgets());
+                document.getElementById('resetLayoutBtn').addEventListener('click', () => this.resetLayout());
+
+                // Close modal when clicking outside
+                document.getElementById('widgetModal').addEventListener('click', (e) => {
+                    if (e.target.id === 'widgetModal') {
+                        this.closeWidgetModal();
+                    }
+                });
+            }
+
+            loadDefaultWidgets() {
+                // Load default widget configuration
+                const defaultWidgets = [
+                    { type: 'performance-chart', size: 'large' },
+                    { type: 'active-positions', size: 'tall' },
+                    { type: 'market-overview', size: 'normal' },
+                    { type: 'arbitrage-opportunities', size: 'wide' },
+                    { type: 'risk-metrics', size: 'normal' },
+                    { type: 'recent-trades', size: 'normal' }
+                ];
+
+                defaultWidgets.forEach(config => {
+                    this.addWidget(config.type, config.size);
+                });
+            }
+
+            setupSortable() {
+                const grid = document.getElementById('widgetGrid');
+                this.sortable = new Sortable(grid, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: (evt) => {
+                        this.saveWidgetLayout();
+                    }
+                });
+            }
+
+            openWidgetModal() {
+                const modal = document.getElementById('widgetModal');
+                const container = modal.querySelector('.grid');
+
+                // Clear existing content
+                container.innerHTML = '';
+
+                // Add widget options
+                Object.entries(this.widgetTypes).forEach(([type, config]) => {
+                    const widgetOption = document.createElement('div');
+                    widgetOption.className = 'bg-gray-700 rounded-lg p-4 hover:bg-gray-600 transition-colors cursor-pointer';
+                    widgetOption.innerHTML = `
+                        <div class="flex items-center mb-2">
+                            <i class="fas ${config.icon} text-2xl text-blue-400 mr-3"></i>
+                            <h4 class="font-semibold">${config.name}</h4>
+                        </div>
+                        <p class="text-sm text-gray-400">${config.description}</p>
+                        <div class="mt-3 flex space-x-2">
+                            <button class="add-widget-btn text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded" data-type="${type}" data-size="normal">
+                                Normal
+                            </button>
+                            <button class="add-widget-btn text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" data-type="${type}" data-size="wide">
+                                Wide
+                            </button>
+                            <button class="add-widget-btn text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" data-type="${type}" data-size="tall">
+                                Tall
+                            </button>
+                            <button class="add-widget-btn text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" data-type="${type}" data-size="large">
+                                Large
+                            </button>
+                        </div>
+                    `;
+
+                    container.appendChild(widgetOption);
+                });
+
+                // Add event listeners to buttons
+                container.querySelectorAll('.add-widget-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const type = btn.dataset.type;
+                        const size = btn.dataset.size;
+                        this.addWidget(type, size);
+                        this.closeWidgetModal();
+                    });
+                });
+
+                modal.classList.remove('hidden');
+            }
+
+            closeWidgetModal() {
+                document.getElementById('widgetModal').classList.add('hidden');
+            }
+
+            addWidget(type, size = 'normal') {
+                const widgetId = `widget-${++this.widgetCounter}`;
+                const widgetConfig = this.widgetTypes[type];
+
+                if (!widgetConfig) {
+                    console.error(`Unknown widget type: ${type}`);
+                    return;
+                }
+
+                const widgetElement = document.createElement('div');
+                widgetElement.id = widgetId;
+                widgetElement.className = `widget-card widget-${size} relative`;
+                widgetElement.dataset.widgetType = type;
+                widgetElement.dataset.widgetSize = size;
+
+                widgetElement.innerHTML = `
+                    <div class="widget-controls">
+                        <button class="p-1 bg-gray-700 hover:bg-gray-600 rounded text-xs mr-1" onclick="dashboard.editWidget('${widgetId}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="p-1 bg-gray-700 hover:bg-gray-600 rounded text-xs mr-1" onclick="dashboard.refreshWidget('${widgetId}')">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="p-1 bg-red-600 hover:bg-red-700 rounded text-xs" onclick="dashboard.removeWidget('${widgetId}')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="widget-content">
+                        ${this.generateWidgetContent(type, widgetId)}
+                    </div>
+                    ${this.isLayoutMode ? '<div class="resize-handle"></div>' : ''}
+                `;
+
+                document.getElementById('widgetGrid').appendChild(widgetElement);
+
+                // Initialize widget
+                this.widgets.set(widgetId, {
+                    type,
+                    size,
+                    element: widgetElement,
+                    data: null
+                });
+
+                // Initialize widget-specific functionality
+                this.initializeWidget(widgetId, type);
+
+                // Save layout
+                this.saveWidgetLayout();
+            }
+
+            generateWidgetContent(type, widgetId) {
+                const config = this.widgetTypes[type];
+
+                return `
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold flex items-center">
+                            <i class="fas ${config.icon} mr-2 text-blue-400"></i>
+                            ${config.name}
+                        </h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="widget-status text-xs text-gray-400">
+                                <i class="fas fa-circle text-green-400 mr-1"></i>
+                                Live
+                            </span>
+                        </div>
+                    </div>
+                    <div class="widget-body">
+                        ${this.generateWidgetBody(type, widgetId)}
+                    </div>
+                `;
+            }
+
+            generateWidgetBody(type, widgetId) {
+                const bodies = {
+                    'performance-chart': `
+                        <div class="chart-container">
+                            <canvas id="chart-${widgetId}"></canvas>
+                        </div>
+                    `,
+                    'active-positions': `
+                        <div class="space-y-2" id="positions-${widgetId}">
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fas fa-spinner fa-spin mb-2"></i>
+                                <p class="text-sm">Loading positions...</p>
+                            </div>
+                        </div>
+                    `,
+                    'market-overview': `
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-gray-400 text-xs">Market Cap</p>
+                                <p class="font-bold text-lg">$2.4T</p>
+                                <p class="text-xs text-green-400">+3.2%</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-400 text-xs">24h Volume</p>
+                                <p class="font-bold text-lg">$145B</p>
+                                <p class="text-xs text-red-400">-1.8%</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-400 text-xs">BTC Dominance</p>
+                                <p class="font-bold text-lg">48.2%</p>
+                                <p class="text-xs text-green-400">+0.5%</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-400 text-xs">Fear & Greed</p>
+                                <p class="font-bold text-lg">62</p>
+                                <p class="text-xs text-yellow-400">Greed</p>
+                            </div>
+                        </div>
+                    `,
+                    'arbitrage-opportunities': `
+                        <div class="space-y-2" id="arbitrage-${widgetId}">
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fas fa-spinner fa-spin mb-2"></i>
+                                <p class="text-sm">Scanning opportunities...</p>
+                            </div>
+                        </div>
+                    `,
+                    'risk-metrics': `
+                        <div class="space-y-3">
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-sm">Daily Risk</span>
+                                    <span class="text-sm font-bold">15%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-yellow-500 h-2 rounded-full" style="width: 15%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-sm">Portfolio Exposure</span>
+                                    <span class="text-sm font-bold">68%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-blue-500 h-2 rounded-full" style="width: 68%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-sm">Max Drawdown</span>
+                                    <span class="text-sm font-bold text-red-400">-8.2%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-red-500 h-2 rounded-full" style="width: 82%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `,
+                    'recent-trades': `
+                        <div class="space-y-2" id="trades-${widgetId}">
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fas fa-spinner fa-spin mb-2"></i>
+                                <p class="text-sm">Loading trades...</p>
+                            </div>
+                        </div>
+                    `,
+                    'news-feed': `
+                        <div class="space-y-3" id="news-${widgetId}">
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fas fa-spinner fa-spin mb-2"></i>
+                                <p class="text-sm">Loading news...</p>
+                            </div>
+                        </div>
+                    `,
+                    'alerts-panel': `
+                        <div class="space-y-2" id="alerts-${widgetId}">
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fas fa-check-circle text-green-400 mb-2"></i>
+                                <p class="text-sm">No active alerts</p>
+                            </div>
+                        </div>
+                    `,
+                    'order-book': `
+                        <div class="chart-container">
+                            <canvas id="chart-${widgetId}"></canvas>
+                        </div>
+                    `,
+                    'technical-analysis': `
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-3 gap-2 text-center">
+                                <div>
+                                    <p class="text-gray-400 text-xs">RSI</p>
+                                    <p class="font-bold text-lg">54.2</p>
+                                    <p class="text-xs text-neutral">Neutral</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 text-xs">MACD</p>
+                                    <p class="font-bold text-lg">1.23</p>
+                                    <p class="text-xs text-green-400">Bullish</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 text-xs">BB</p>
+                                    <p class="font-bold text-lg">Mid</p>
+                                    <p class="text-xs text-neutral">Neutral</p>
+                                </div>
+                            </div>
+                            <div class="chart-container mini-chart">
+                                <canvas id="chart-${widgetId}"></canvas>
+                            </div>
+                        </div>
+                    `,
+                    'sentiment-analysis': `
+                        <div class="space-y-3">
+                            <div class="text-center">
+                                <p class="text-gray-400 text-xs">Overall Sentiment</p>
+                                <p class="font-bold text-2xl text-green-400">Bullish</p>
+                                <p class="text-sm">72% Positive</p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 text-center">
+                                <div>
+                                    <p class="text-gray-400 text-xs">Social Media</p>
+                                    <p class="font-bold text-lg text-green-400">68%</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400 text-xs">News</p>
+                                    <p class="font-bold text-lg text-green-400">75%</p>
+                                </div>
+                            </div>
+                        </div>
+                    `
+                };
+
+                return bodies[type] || '<div>Unknown widget type</div>';
+            }
+
+            initializeWidget(widgetId, type) {
+                switch (type) {
+                    case 'performance-chart':
+                        this.initializePerformanceChart(widgetId);
+                        break;
+                    case 'active-positions':
+                        this.loadPositionsData(widgetId);
+                        break;
+                    case 'arbitrage-opportunities':
+                        this.loadArbitrageData(widgetId);
+                        break;
+                    case 'recent-trades':
+                        this.loadTradesData(widgetId);
+                        break;
+                    case 'news-feed':
+                        this.loadNewsData(widgetId);
+                        break;
+                    case 'order-book':
+                        this.initializeOrderBook(widgetId);
+                        break;
+                    case 'technical-analysis':
+                        this.initializeTechnicalChart(widgetId);
+                        break;
+                    case 'alerts-panel':
+                        this.loadAlertsData(widgetId);
+                        break;
+                }
+            }
+
+            initializePerformanceChart(widgetId) {
+                const canvas = document.getElementById(`chart-${widgetId}`);
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: this.generateTimeLabels(30),
+                        datasets: [{
+                            label: 'Portfolio Value',
+                            data: this.generateRandomData(30, 100000, 150000),
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1,
+                            fill: true
+                        }, {
+                            label: 'BTC Price',
+                            data: this.generateRandomData(30, 40000, 50000),
+                            borderColor: 'rgb(251, 146, 60)',
+                            backgroundColor: 'rgba(251, 146, 60, 0.1)',
+                            tension: 0.1,
+                            fill: true,
+                            yAxisID: 'y1'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: {
+                                labels: { color: 'white' }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                ticks: { color: 'white' },
+                                grid: { drawOnChartArea: false }
+                            }
+                        }
+                    }
+                });
+
+                this.charts.set(widgetId, chart);
+            }
+
+            initializeOrderBook(widgetId) {
+                const canvas = document.getElementById(`chart-${widgetId}`);
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                const buyData = this.generateRandomData(10, 100, 500);
+                const sellData = this.generateRandomData(10, 100, 500);
+
+                const chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: Array.from({length: 10}, (_, i) => `$${45000 + i * 10}`),
+                        datasets: [{
+                            label: 'Buy Orders',
+                            data: buyData,
+                            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                            borderColor: 'rgb(34, 197, 94)',
+                        }, {
+                            label: 'Sell Orders',
+                            data: sellData,
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                            borderColor: 'rgb(239, 68, 68)',
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: 'white' }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                });
+
+                this.charts.set(widgetId, chart);
+            }
+
+            initializeTechnicalChart(widgetId) {
+                const canvas = document.getElementById(`chart-${widgetId}`);
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: this.generateTimeLabels(20),
+                        datasets: [{
+                            label: 'Price',
+                            data: this.generateRandomData(20, 44000, 46000),
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                });
+
+                this.charts.set(widgetId, chart);
+            }
+
+            async loadPositionsData(widgetId) {
+                // Simulate loading positions
+                setTimeout(() => {
+                    const positions = [
+                        { symbol: 'BTCUSDT', side: 'Long', size: 0.15, pnl: 1247.50, pnlPercent: 5.2 },
+                        { symbol: 'ETHUSDT', side: 'Short', size: 5.2, pnl: -234.10, pnlPercent: -1.8 },
+                        { symbol: 'BNBUSDT', side: 'Long', size: 10, pnl: 445.30, pnlPercent: 3.1 }
+                    ];
+
+                    const container = document.getElementById(`positions-${widgetId}`);
+                    container.innerHTML = positions.map(pos => `
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span class="font-mono font-semibold">${pos.symbol}</span>
+                                    <span class="ml-2 px-2 py-1 text-xs ${pos.side === 'Long' ? 'bg-green-500' : 'bg-red-500'} bg-opacity-20 ${pos.side === 'Long' ? 'text-green-400' : 'text-red-400'} rounded">
+                                        ${pos.side}
+                                    </span>
+                                </div>
+                                <div class="text-right">
+                                    <div class="${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'} font-bold">
+                                        ${pos.pnl >= 0 ? '+' : ''}$${pos.pnl.toFixed(2)}
+                                    </div>
+                                    <div class="text-xs text-gray-400">
+                                        ${pos.pnl >= 0 ? '+' : ''}${pos.pnlPercent}%
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }, 1000);
+            }
+
+            async loadArbitrageData(widgetId) {
+                setTimeout(() => {
+                    const opportunities = [
+                        { symbol: 'BTCUSDT', profit: 2.1, buyExchange: 'Binance', sellExchange: 'Bitkub' },
+                        { symbol: 'ETHUSDT', profit: 1.4, buyExchange: 'Bitkub', sellExchange: 'Binance' },
+                        { symbol: 'ADAUSDT', profit: 3.2, buyExchange: 'Binance', sellExchange: 'Bitkub' }
+                    ];
+
+                    const container = document.getElementById(`arbitrage-${widgetId}`);
+                    container.innerHTML = opportunities.map(opp => `
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span class="font-mono font-semibold">${opp.symbol}</span>
+                                    <div class="text-xs text-gray-400">
+                                        ${opp.buyExchange} → ${opp.sellExchange}
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-green-400 font-bold">+${opp.profit}%</div>
+                                    <button class="text-xs bg-green-600 hover:bg-green-700 px-2 py-1 rounded mt-1">
+                                        Execute
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }, 1200);
+            }
+
+            async loadTradesData(widgetId) {
+                setTimeout(() => {
+                    const trades = [
+                        { symbol: 'BTCUSDT', side: 'Buy', price: 45234, quantity: 0.1, time: '2 min ago', pnl: '+2.1%' },
+                        { symbol: 'ETHUSDT', side: 'Sell', price: 3124, quantity: 2.5, time: '5 min ago', pnl: '-0.8%' },
+                        { symbol: 'BNBUSDT', side: 'Buy', price: 387, quantity: 8, time: '12 min ago', pnl: '+1.5%' }
+                    ];
+
+                    const container = document.getElementById(`trades-${widgetId}`);
+                    container.innerHTML = trades.map(trade => `
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="flex items-center">
+                                        <span class="font-mono font-semibold">${trade.symbol}</span>
+                                        <span class="ml-2 px-2 py-1 text-xs ${trade.side === 'Buy' ? 'bg-green-500' : 'bg-red-500'} bg-opacity-20 ${trade.side === 'Buy' ? 'text-green-400' : 'text-red-400'} rounded">
+                                            ${trade.side}
+                                        </span>
+                                    </div>
+                                    <div class="text-xs text-gray-400">
+                                        ${trade.price} × ${trade.quantity} • ${trade.time}
+                                    </div>
+                                </div>
+                                <div class="${trade.pnl.startsWith('+') ? 'text-green-400' : 'text-red-400'} text-sm font-bold">
+                                    ${trade.pnl}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }, 800);
+            }
+
+            async loadNewsData(widgetId) {
+                setTimeout(() => {
+                    const news = [
+                        { title: 'Bitcoin Surges Past $45K', source: 'CoinDesk', time: '5 min ago', sentiment: 'positive' },
+                        { title: 'Ethereum 2.0 Staking Reaches All-Time High', source: 'Decrypt', time: '15 min ago', sentiment: 'positive' },
+                        { title: 'Regulatory Concerns Impact Altcoins', source: 'Cointelegraph', time: '1 hour ago', sentiment: 'negative' }
+                    ];
+
+                    const container = document.getElementById(`news-${widgetId}`);
+                    container.innerHTML = news.map(item => `
+                        <div class="bg-gray-700 rounded p-3">
+                            <h4 class="font-semibold text-sm mb-1">${item.title}</h4>
+                            <div class="flex justify-between items-center text-xs text-gray-400">
+                                <span>${item.source}</span>
+                                <span>${item.time}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }, 1500);
+            }
+
+            async loadAlertsData(widgetId) {
+                setTimeout(() => {
+                    const alerts = [
+                        { type: 'warning', message: 'High volatility detected in BTC market' },
+                        { type: 'info', message: 'New arbitrage opportunity available' }
+                    ];
+
+                    const container = document.getElementById(`alerts-${widgetId}`);
+                    container.innerHTML = alerts.map(alert => `
+                        <div class="bg-gray-700 rounded p-3 border-l-4 ${alert.type === 'warning' ? 'border-yellow-500' : 'border-blue-500'}">
+                            <div class="flex items-center">
+                                <i class="fas ${alert.type === 'warning' ? 'fa-exclamation-triangle text-yellow-500' : 'fa-info-circle text-blue-500'} mr-2"></i>
+                                <p class="text-sm">${alert.message}</p>
+                            </div>
+                        </div>
+                    `).join('');
+                }, 600);
+            }
+
+            removeWidget(widgetId) {
+                const widget = this.widgets.get(widgetId);
+                if (widget) {
+                    // Clean up chart if exists
+                    if (this.charts.has(widgetId)) {
+                        this.charts.get(widgetId).destroy();
+                        this.charts.delete(widgetId);
+                    }
+
+                    // Remove element
+                    widget.element.remove();
+                    this.widgets.delete(widgetId);
+
+                    // Save layout
+                    this.saveWidgetLayout();
+                }
+            }
+
+            editWidget(widgetId) {
+                const widget = this.widgets.get(widgetId);
+                if (widget) {
+                    // Open edit modal for widget settings
+                    console.log(`Editing widget ${widgetId} of type ${widget.type}`);
+                }
+            }
+
+            refreshWidget(widgetId) {
+                const widget = this.widgets.get(widgetId);
+                if (widget) {
+                    // Show loading state
+                    const statusElement = widget.element.querySelector('.widget-status');
+                    statusElement.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Updating';
+
+                    // Reload widget data
+                    setTimeout(() => {
+                        this.initializeWidget(widgetId, widget.type);
+                        statusElement.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Live';
+                    }, 1000);
+                }
+            }
+
+            refreshAllWidgets() {
+                this.widgets.forEach((widget, widgetId) => {
+                    this.refreshWidget(widgetId);
+                });
+            }
+
+            toggleLayoutMode() {
+                this.isLayoutMode = !this.isLayoutMode;
+                const btn = document.getElementById('layoutModeBtn');
+
+                if (this.isLayoutMode) {
+                    btn.classList.add('bg-blue-600');
+                    btn.classList.remove('bg-gray-700');
+                    btn.innerHTML = '<i class="fas fa-check mr-1 md:mr-2"></i><span class="hidden md:inline">Done</span>';
+
+                    // Show resize handles and enable resizing
+                    this.widgets.forEach((widget) => {
+                        const handle = document.createElement('div');
+                        handle.className = 'resize-handle';
+                        widget.element.appendChild(handle);
+                    });
+                } else {
+                    btn.classList.remove('bg-blue-600');
+                    btn.classList.add('bg-gray-700');
+                    btn.innerHTML = '<i class="fas fa-grip mr-1 md:mr-2"></i><span class="hidden md:inline">Layout</span>';
+
+                    // Hide resize handles
+                    document.querySelectorAll('.resize-handle').forEach(handle => handle.remove());
+                }
+            }
+
+            resetLayout() {
+                if (confirm('Reset dashboard to default layout? This will remove all current widgets.')) {
+                    // Clear all widgets
+                    this.widgets.forEach((widget, widgetId) => {
+                        this.removeWidget(widgetId);
+                    });
+
+                    // Reload default widgets
+                    this.loadDefaultWidgets();
+                }
+            }
+
+            saveWidgetLayout() {
+                const layout = Array.from(this.widgets.values()).map(widget => ({
+                    type: widget.type,
+                    size: widget.size
+                }));
+
+                localStorage.setItem('widgetLayout', JSON.stringify(layout));
+            }
+
+            loadWidgetLayout() {
+                const saved = localStorage.getItem('widgetLayout');
+                if (saved) {
+                    try {
+                        const layout = JSON.parse(saved);
+                        layout.forEach(config => {
+                            this.addWidget(config.type, config.size);
+                        });
+                    } catch (error) {
+                        console.error('Failed to load widget layout:', error);
+                        this.loadDefaultWidgets();
+                    }
+                } else {
+                    this.loadDefaultWidgets();
+                }
+            }
+
+            startDataUpdates() {
+                // Update widgets every 30 seconds
+                setInterval(() => {
+                    this.updateWidgetData();
+                }, 30000);
+            }
+
+            updateWidgetData() {
+                // Update dynamic widgets with fresh data
+                this.widgets.forEach((widget, widgetId) => {
+                    if (['active-positions', 'arbitrage-opportunities', 'recent-trades', 'news-feed', 'alerts-panel'].includes(widget.type)) {
+                        this.initializeWidget(widgetId, widget.type);
+                    }
+                });
+            }
+
+            // Utility functions
+            generateTimeLabels(count) {
+                const labels = [];
+                const now = new Date();
+                for (let i = count - 1; i >= 0; i--) {
+                    const time = new Date(now - i * 5 * 60 * 1000);
+                    labels.push(time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                }
+                return labels;
+            }
+
+            generateRandomData(count, min, max) {
+                const data = [];
+                let lastValue = min + Math.random() * (max - min);
+
+                for (let i = 0; i < count; i++) {
+                    const change = (Math.random() - 0.5) * (max - min) * 0.05;
+                    lastValue = Math.max(min, Math.min(max, lastValue + change));
+                    data.push(lastValue);
+                }
+                return data;
+            }
+        }
+
+        // Initialize dashboard
+        let dashboard;
+        document.addEventListener('DOMContentLoaded', () => {
+            dashboard = new WidgetDashboard();
+        });
+    </script>
+</body>
+</html>

@@ -37,7 +37,7 @@ class DecisionService {
             const canExecute = await this.validateWithRiskManagement(signal, symbol);
             const context = {
                 symbol,
-                currentPrice: marketData.price,
+                currentPrice: marketData.currentPrice,
                 marketData,
                 riskMetrics,
                 aiAnalysis,
@@ -96,10 +96,10 @@ class DecisionService {
             const marketData = await this.gatherMarketData(symbol);
             const signal = await this.aiService.generateTradingSignal(symbol, marketData);
             if (action === 'BUY') {
-                return await this.executeBuyOrder(symbol, marketData.price, signal);
+                return await this.executeBuyOrder(symbol, marketData.currentPrice, signal);
             }
             else if (action === 'SELL') {
-                return await this.executeSellOrder(symbol, marketData.price, signal);
+                return await this.executeSellOrder(symbol, marketData.currentPrice, signal);
             }
             return false;
         }
@@ -114,11 +114,16 @@ class DecisionService {
             const stats24h = await this.binanceService.get24hrStats(symbol);
             return {
                 symbol,
-                price: parseFloat(ticker.price),
+                currentPrice: parseFloat(ticker.price),
+                priceChange24h: parseFloat(ticker.change24h),
                 volume: parseFloat(ticker.volume),
-                change24h: parseFloat(ticker.change24h),
                 high24h: parseFloat(ticker.high24h),
                 low24h: parseFloat(ticker.low24h),
+                volatility: 0,
+                trend: 'SIDEWAYS',
+                momentum: 0,
+                support: 0,
+                resistance: 0,
                 timestamp: Date.now(),
             };
         }
@@ -133,7 +138,7 @@ class DecisionService {
                 return false;
             }
             const marketData = await this.gatherMarketData(symbol);
-            const canExecute = await this.riskService.validateTradeExecution(symbol, signal.action, signal.positionSize, marketData.price, signal.stopLoss);
+            const canExecute = await this.riskService.validateTradeExecution(symbol, signal.action, signal.positionSize, marketData.currentPrice, signal.stopLoss);
             if (!canExecute) {
                 logger_1.logger.warn(`Trading decision for ${symbol} blocked by risk management`, {
                     action: signal.action,

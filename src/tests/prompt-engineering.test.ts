@@ -22,12 +22,12 @@ describe('PromptEngineeringService', () => {
     promptService = new PromptEngineeringService();
 
     mockContext = {
-      marketCondition: 'BULLISH',
-      volatilityLevel: 'MEDIUM',
+      marketCondition: 'BULLISH' as const,
+      volatilityLevel: 'MEDIUM' as const,
       timeOfDay: '10:00 AM',
       dayOfWeek: 'Monday',
       recentPerformance: 5.2,
-      riskTolerance: 'MODERATE',
+      riskTolerance: 'MODERATE' as const,
       positionSize: 3,
       portfolioHeat: 45,
       marketSentiment: 0.75
@@ -195,7 +195,7 @@ describe('PromptEngineeringService', () => {
         high24h: 52000,
         low24h: 48000,
         volatility: 0.04,
-        trend: 'BULLISH',
+        trend: 'BULLISH' as const,
         momentum: 0.12,
         support: 48000,
         resistance: 52000
@@ -230,7 +230,7 @@ describe('PromptEngineeringService', () => {
         high24h: 54000,
         low24h: 49000,
         volatility: 0.08,
-        trend: 'BEARISH',
+        trend: 'BEARISH' as const,
         momentum: -0.25,
         support: 48000,
         resistance: 54000

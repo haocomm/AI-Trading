@@ -19,7 +19,7 @@ const productionFormat = winston.format.combine(
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
     // Create structured log entry
     const logEntry: any = {
-      timestamp: new Date(timestamp).toISOString(),
+      timestamp: new Date(timestamp as string | number | Date).toISOString(),
       level: level.toUpperCase(),
       message,
       service: 'ai-trading',

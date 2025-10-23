@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Trading Platform - Mobile Enhanced Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1f2937">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        @keyframes pulse-red {
+            0%, 100% { background-color: rgba(239, 68, 68, 0.1); }
+            50% { background-color: rgba(239, 68, 68, 0.3); }
+        }
+        @keyframes pulse-green {
+            0%, 100% { background-color: rgba(34, 197, 94, 0.1); }
+            50% { background-color: rgba(34, 197, 94, 0.3); }
+        }
+        @keyframes slide-up {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        .alert-critical { animation: pulse-red 2s infinite; }
+        .alert-success { animation: pulse-green 2s infinite; }
+        .status-online { background-color: rgba(34, 197, 94, 0.2); }
+        .status-offline { background-color: rgba(239, 68, 68, 0.2); }
+        .status-degraded { background-color: rgba(245, 158, 11, 0.2); }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .hover-scale {
+            transition: transform 0.2s ease;
+        }
+        .hover-scale:hover {
+            transform: scale(1.02);
+        }
+
+        .mobile-slide-up {
+            animation: slide-up 0.3s ease-out;
+        }
+
+        .emergency-shake {
+            animation: shake 0.5s;
+        }
+
+        .mobile-card {
+            @apply rounded-lg p-4 glass-effect hover-scale;
+        }
+
+        .mobile-grid {
+            @apply grid grid-cols-2 gap-3;
+        }
+
+        @media (max-width: 768px) {
+            .desktop-only { display: none !important; }
+            .mobile-full { @apply w-full; }
+            .mobile-text-sm { @apply text-sm; }
+            .mobile-p-2 { @apply p-2; }
+        }
+
+        @media (min-width: 769px) {
+            .mobile-only { display: none !important; }
+        }
+
+        .mobile-bottom-nav {
+            @apply fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 px-4 py-2 z-50;
+        }
+
+        .mobile-nav-item {
+            @apply flex flex-col items-center py-2 px-3 rounded-lg transition-colors;
+        }
+
+        .mobile-nav-item.active {
+            @apply bg-blue-600 text-white;
+        }
+
+        .mobile-nav-item:not(.active) {
+            @apply text-gray-400 hover:text-white;
+        }
+
+        .floating-action-btn {
+            @apply fixed bottom-20 right-4 w-14 h-14 bg-red-600 rounded-full shadow-lg flex items-center justify-center text-white z-40 hover:bg-red-700 transition-colors;
+        }
+
+        .notification-panel {
+            @apply fixed top-0 right-0 w-80 h-full bg-gray-800 shadow-2xl transform translate-x-full transition-transform duration-300 z-50 overflow-y-auto;
+        }
+
+        .notification-panel.open {
+            @apply translate-x-0;
+        }
+
+        .widget-card {
+            @apply glass-effect rounded-lg p-4 hover-scale transition-all duration-200;
+        }
+
+        .widget-dragging {
+            @apply opacity-50 scale-105;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen pb-20 md:pb-0">
+    <!-- Mobile Header -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-40">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <button id="mobileMenuBtn" class="mobile-only p-2 rounded-lg hover:bg-gray-700">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-chart-line text-2xl text-blue-400"></i>
+                        <div>
+                            <h1 class="text-lg md:text-2xl font-bold">AI Trading</h1>
+                            <p class="text-xs md:text-sm text-gray-400 mobile-only">Mobile Dashboard</p>
+                            <p class="text-sm text-gray-400 desktop-only">Multi-Exchange Trading Platform</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 md:space-x-4">
+                    <button id="notificationBtn" class="relative p-2 rounded-lg hover:bg-gray-700">
+                        <i class="fas fa-bell text-xl"></i>
+                        <span id="notificationBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">0</span>
+                    </button>
+                    <button id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg transition-colors mobile-text-sm">
+                        <i class="fas fa-sync-alt mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Refresh</span>
+                    </button>
+                    <button id="emergencyBtn" class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg transition-colors mobile-text-sm">
+                        <i class="fas fa-stop-circle mr-1 md:mr-2"></i>
+                        <span class="hidden md:inline">Emergency Stop</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mobile Side Menu -->
+    <div id="mobileSideMenu" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="bg-gray-800 w-64 h-full overflow-y-auto">
+            <div class="p-4 border-b border-gray-700">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold">Menu</h2>
+                    <button id="closeMobileMenu" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+            <nav class="p-4">
+                <div class="space-y-2">
+                    <a href="#dashboard" class="block px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                        <i class="fas fa-dashboard mr-3"></i>Dashboard
+                    </a>
+                    <a href="#positions" class="block px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                        <i class="fas fa-wallet mr-3"></i>Positions
+                    </a>
+                    <a href="#alerts" class="block px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                        <i class="fas fa-bell mr-3"></i>Alerts
+                    </a>
+                    <a href="#settings" class="block px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                        <i class="fas fa-cog mr-3"></i>Settings
+                    </a>
+                    <a href="#risk" class="block px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                        <i class="fas fa-shield-alt mr-3"></i>Risk Control
+                    </a>
+                </div>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Notification Panel -->
+    <div id="notificationPanel" class="notification-panel">
+        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+            <h3 class="text-lg font-bold">Notifications</h3>
+            <button id="closeNotifications" class="text-gray-400 hover:text-white">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div id="notificationsList" class="p-4 space-y-3">
+            <!-- Notifications will be added here -->
+        </div>
+    </div>
+
+    <main class="container mx-auto px-4 py-4 md:py-6">
+        <!-- Critical Alert Banner -->
+        <div id="criticalAlertBanner" class="hidden mb-4 p-4 bg-red-600 rounded-lg emergency-shake">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-triangle text-2xl mr-3"></i>
+                    <div>
+                        <h4 class="font-bold">CRITICAL ALERT</h4>
+                        <p id="criticalAlertMessage" class="text-sm"></p>
+                    </div>
+                </div>
+                <button id="dismissCriticalAlert" class="text-white hover:text-gray-200">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Stats Mobile Cards -->
+        <div class="mobile-grid md:grid md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-4 md:mb-6">
+            <div class="widget-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Daily P&L</p>
+                        <p id="mobileDailyPnL" class="text-xl md:text-3xl font-bold text-green-400">+$0</p>
+                        <p id="mobilePnLPercent" class="text-xs text-green-400">+0%</p>
+                    </div>
+                    <i class="fas fa-dollar-sign text-2xl md:text-3xl text-green-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="widget-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">Active Trades</p>
+                        <p id="mobileActiveTrades" class="text-xl md:text-3xl font-bold text-blue-400">0</p>
+                        <p id="mobileOpenPositions" class="text-xs text-blue-400">0 positions</p>
+                    </div>
+                    <i class="fas fa-exchange-alt text-2xl md:text-3xl text-blue-400 opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="widget-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs md:text-sm">System Status</p>
+                        <p id="mobileSystemStatus" class="text-lg md:text-xl font-bold text-green-400">Online</p>
+                        <div id="mobileSystemIndicators" class="flex space-x-1 mt-1">
+                            <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                            <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                            <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                        </div>
+                    </div>
+                    <i id="mobileSystemIcon" class="fas fa-check-circle text-2xl md:text-3xl text-green-400"></i>
+                </div>
+            </div>
+
+            <div class="widget-card desktop-only">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Success Rate</p>
+                        <p id="successRate" class="text-3xl font-bold text-yellow-400">0%</p>
+                    </div>
+                    <i class="fas fa-percentage text-3xl text-yellow-400 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Risk Controls -->
+        <div class="widget-card mb-4 md:mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base md:text-lg font-bold">
+                    <i class="fas fa-shield-alt text-red-400 mr-2"></i>
+                    Risk Controls
+                </h3>
+                <button id="expandRiskControls" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+            <div id="riskControlsContent" class="space-y-3">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="bg-gray-800 rounded p-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-400">Daily Loss Limit</span>
+                            <button id="editDailyLoss" class="text-blue-400 hover:text-blue-300">
+                                <i class="fas fa-edit text-xs"></i>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span id="dailyLossValue" class="text-lg font-bold">-$500</span>
+                            <span id="dailyLossPercent" class="text-sm text-gray-400">-5%</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2 mt-2">
+                            <div id="dailyLossBar" class="bg-red-500 h-2 rounded-full" style="width: 20%"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800 rounded p-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-400">Max Position Size</span>
+                            <button id="editPositionSize" class="text-blue-400 hover:text-blue-300">
+                                <i class="fas fa-edit text-xs"></i>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span id="positionSizeValue" class="text-lg font-bold">$1000</span>
+                            <span class="text-sm text-gray-400">2%</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2 mt-2">
+                            <div id="positionSizeBar" class="bg-yellow-500 h-2 rounded-full" style="width: 40%"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800 rounded p-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-400">Exposure</span>
+                            <span class="text-xs text-gray-600">Auto</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span id="exposureValue" class="text-lg font-bold">15%</span>
+                            <span id="exposureAmount" class="text-sm text-gray-400">$7,500</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2 mt-2">
+                            <div id="exposureBar" class="bg-blue-500 h-2 rounded-full" style="width: 30%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <button id="emergencyStopBtn" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                        <i class="fas fa-stop-circle mr-2"></i>Emergency Stop All
+                    </button>
+                    <button id="pauseTradingBtn" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                        <i class="fas fa-pause-circle mr-2"></i>Pause Trading
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Exchange Status Cards -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
+            <!-- Binance Status -->
+            <div class="widget-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base md:text-xl font-bold flex items-center">
+                        <img src="https://assets.coingecko.com/coins/images/279/large/binance.png" alt="Binance" class="w-5 h-5 md:w-6 md:h-6 mr-2">
+                        Binance
+                    </h2>
+                    <div id="binanceStatus" class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-semibold">
+                        <i class="fas fa-circle text-xs mr-1"></i>
+                        <span id="binanceStatusText">Checking...</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 md:gap-4 mb-3">
+                    <div>
+                        <p class="text-gray-400 text-xs">API Response</p>
+                        <p id="binanceLatency" class="text-base md:text-lg font-mono">--ms</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs">24h Volume</p>
+                        <p id="binanceVolume" class="text-base md:text-lg font-mono">$0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs">Active Orders</p>
+                        <p id="binanceOrders" class="text-base md:text-lg font-mono">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs">Balance</p>
+                        <p id="binanceBalance" class="text-base md:text-lg font-mono">$0</p>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-gray-400 text-xs mb-2">Top Markets</p>
+                    <div id="binanceMarkets" class="space-y-1"></div>
+                </div>
+            </div>
+
+            <!-- Bitkub Status -->
+            <div class="widget-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base md:text-xl font-bold flex items-center">
+                        <div class="w-5 h-5 md:w-6 md:h-6 bg-orange-500 rounded-full mr-2 flex items-center justify-center">
+                            <span class="text-white text-xs md:text-sm font-bold">B</span>
+                        </div>
+                        Bitkub
+                    </h2>
+                    <div id="bitkubStatus" class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-semibold">
+                        <i class="fas fa-circle text-xs mr-1"></i>
+                        <span id="bitkubStatusText">Checking...</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 md:gap-4 mb-3">
+                    <div>
+                        <p class="text-gray-400 text-xs">API Response</p>
+                        <p id="bitkubLatency" class="text-base md:text-lg font-mono">--ms</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs">24h Volume</p>
+                        <p id="bitkubVolume" class="text-base md:text-lg font-mono">$0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs">Active Orders</p>
+                        <p id="bitkubOrders" class="text-base md:text-lg font-mono">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs">Balance</p>
+                        <p id="bitkubBalance" class="text-base md:text-lg font-mono">$0</p>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-gray-400 text-xs mb-2">Top Markets</p>
+                    <div id="bitkubMarkets" class="space-y-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Positions (Mobile Priority) -->
+        <div class="widget-card mb-4 md:mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base md:text-xl font-bold">
+                    <i class="fas fa-wallet text-green-400 mr-2"></i>
+                    Active Positions
+                </h2>
+                <button id="refreshPositions" class="text-blue-400 hover:text-blue-300">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <div id="positionsList" class="space-y-2">
+                <div class="text-center py-8 text-gray-400">
+                    <i class="fas fa-wallet text-4xl mb-2 opacity-50"></i>
+                    <p>No active positions</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arbitrage Opportunities -->
+        <div class="widget-card mb-4 md:mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base md:text-xl font-bold">
+                    <i class="fas fa-coins text-yellow-400 mr-2"></i>
+                    Arbitrage Opportunities
+                </h2>
+                <div class="flex space-x-2">
+                    <select id="minProfitFilter" class="bg-gray-700 px-2 py-1 rounded text-xs md:text-sm">
+                        <option value="0">All Profits</option>
+                        <option value="0.5">> 0.5%</option>
+                        <option value="1.0">> 1.0%</option>
+                        <option value="2.0">> 2.0%</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="arbitrageOpportunities" class="overflow-x-auto">
+                <div class="min-w-full">
+                    <div class="space-y-2" id="mobileArbitrageList">
+                        <div class="text-center py-8 text-gray-400">
+                            <i class="fas fa-coins text-4xl mb-2 opacity-50"></i>
+                            <p>Loading opportunities...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
+            <!-- P&L Chart -->
+            <div class="widget-card">
+                <h3 class="text-base md:text-lg font-bold mb-4">
+                    <i class="fas fa-chart-line text-green-400 mr-2"></i>
+                    P&L History
+                </h3>
+                <canvas id="profitChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Latency Chart -->
+            <div class="widget-card">
+                <h3 class="text-base md:text-lg font-bold mb-4">
+                    <i class="fas fa-tachometer-alt text-blue-400 mr-2"></i>
+                    API Performance
+                </h3>
+                <canvas id="latencyChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav mobile-only">
+        <div class="flex justify-around items-center">
+            <button class="mobile-nav-item active" data-page="dashboard">
+                <i class="fas fa-dashboard text-xl mb-1"></i>
+                <span class="text-xs">Dashboard</span>
+            </button>
+            <button class="mobile-nav-item" data-page="positions">
+                <i class="fas fa-wallet text-xl mb-1"></i>
+                <span class="text-xs">Positions</span>
+            </button>
+            <button class="mobile-nav-item" data-page="alerts">
+                <i class="fas fa-bell text-xl mb-1"></i>
+                <span class="text-xs">Alerts</span>
+            </button>
+            <button class="mobile-nav-item" data-page="risk">
+                <i class="fas fa-shield-alt text-xl mb-1"></i>
+                <span class="text-xs">Risk</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Floating Action Button -->
+    <button id="floatingEmergencyBtn" class="floating-action-btn mobile-only">
+        <i class="fas fa-stop text-2xl"></i>
+    </button>
+
+    <script>
+        // Mobile enhanced dashboard functionality
+        let dashboardData = null;
+        let refreshInterval = null;
+        let charts = {};
+        let notifications = [];
+        let isMobile = window.innerWidth <= 768;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMobileFeatures();
+            initializeDashboard();
+            setupEventListeners();
+            setupPushNotifications();
+            startAutoRefresh();
+        });
+
+        function initializeMobileFeatures() {
+            // Set up service worker for PWA functionality
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js').catch(console.error);
+            }
+
+            // Detect mobile device
+            isMobile = window.innerWidth <= 768;
+
+            // Setup mobile-specific features
+            setupMobileNavigation();
+            setupTouchGestures();
+            setupOrientationHandler();
+        }
+
+        function setupMobileNavigation() {
+            // Mobile menu toggle
+            document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+                document.getElementById('mobileSideMenu').classList.remove('hidden');
+            });
+
+            document.getElementById('closeMobileMenu').addEventListener('click', () => {
+                document.getElementById('mobileSideMenu').classList.add('hidden');
+            });
+
+            // Bottom navigation
+            document.querySelectorAll('.mobile-nav-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    document.querySelectorAll('.mobile-nav-item').forEach(nav =>
+                        nav.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+
+                    const page = e.currentTarget.dataset.page;
+                    navigateToPage(page);
+                });
+            });
+
+            // Close mobile menu when clicking outside
+            document.getElementById('mobileSideMenu').addEventListener('click', (e) => {
+                if (e.target.id === 'mobileSideMenu') {
+                    document.getElementById('mobileSideMenu').classList.add('hidden');
+                }
+            });
+        }
+
+        function setupTouchGestures() {
+            let startX = 0;
+            let currentX = 0;
+            let isGestureActive = false;
+
+            document.addEventListener('touchstart', (e) => {
+                startX = e.touches[0].clientX;
+                isGestureActive = true;
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!isGestureActive) return;
+                currentX = e.touches[0].clientX;
+            });
+
+            document.addEventListener('touchend', (e) => {
+                if (!isGestureActive) return;
+
+                const diff = currentX - startX;
+
+                // Swipe right to open notifications
+                if (diff > 100 && startX < 50) {
+                    openNotifications();
+                }
+
+                isGestureActive = false;
+            });
+        }
+
+        function setupOrientationHandler() {
+            window.addEventListener('orientationchange', () => {
+                setTimeout(() => {
+                    // Recalculate charts and layout
+                    Object.values(charts).forEach(chart => {
+                        if (chart) chart.resize();
+                    });
+                }, 100);
+            });
+        }
+
+        function setupPushNotifications() {
+            // Request notification permission
+            if ('Notification' in navigator && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+
+            // Setup WebSocket for real-time updates (placeholder)
+            setupWebSocketConnection();
+        }
+
+        function setupWebSocketConnection() {
+            // In real implementation, connect to your WebSocket server
+            // For demo, we'll simulate real-time updates
+            setInterval(() => {
+                simulateRealTimeUpdate();
+            }, 10000);
+        }
+
+        function simulateRealTimeUpdate() {
+            // Simulate receiving new data or alerts
+            if (Math.random() > 0.8) {
+                const alert = generateMockAlert();
+                addNotification(alert);
+                showPushNotification(alert);
+            }
+        }
+
+        function initializeDashboard() {
+            initializeCharts();
+            loadDashboardData();
+        }
+
+        function setupEventListeners() {
+            // Common event listeners
+            document.getElementById('refreshBtn').addEventListener('click', loadDashboardData);
+            document.getElementById('notificationBtn').addEventListener('click', openNotifications);
+            document.getElementById('closeNotifications').addEventListener('click', closeNotifications);
+            document.getElementById('minProfitFilter').addEventListener('change', updateArbitrageOpportunities);
+
+            // Emergency controls
+            document.getElementById('emergencyBtn').addEventListener('click', triggerEmergencyStop);
+            document.getElementById('floatingEmergencyBtn').addEventListener('click', triggerEmergencyStop);
+            document.getElementById('emergencyStopBtn').addEventListener('click', triggerEmergencyStop);
+            document.getElementById('pauseTradingBtn').addEventListener('click', toggleTradingPause);
+
+            // Risk controls
+            document.getElementById('expandRiskControls').addEventListener('click', toggleRiskControls);
+            document.getElementById('editDailyLoss').addEventListener('click', () => openRiskEditor('dailyLoss'));
+            document.getElementById('editPositionSize').addEventListener('click', () => openRiskEditor('positionSize'));
+
+            // Positions refresh
+            document.getElementById('refreshPositions').addEventListener('click', loadPositions);
+
+            // Critical alert
+            document.getElementById('dismissCriticalAlert').addEventListener('click', dismissCriticalAlert);
+        }
+
+        function openNotifications() {
+            document.getElementById('notificationPanel').classList.add('open');
+            updateNotificationBadge();
+        }
+
+        function closeNotifications() {
+            document.getElementById('notificationPanel').classList.remove('open');
+        }
+
+        function triggerEmergencyStop() {
+            if (confirm('⚠️ EMERGENCY STOP ⚠️\n\nAre you sure you want to stop all trading activity immediately? This will:\n\n• Cancel all open orders\n• Close all positions\n• Stop all trading bots\n\nThis action cannot be undone.')) {
+                executeEmergencyStop();
+            }
+        }
+
+        function executeEmergencyStop() {
+            // Show critical alert
+            const banner = document.getElementById('criticalAlertBanner');
+            const message = document.getElementById('criticalAlertMessage');
+            message.textContent = '🚨 EMERGENCY STOP ACTIVATED - All trading stopped';
+            banner.classList.remove('hidden');
+
+            // In real implementation, call your emergency stop API
+            showPushNotification({
+                type: 'CRITICAL',
+                title: 'EMERGENCY STOP ACTIVATED',
+                message: 'All trading has been stopped immediately',
+                timestamp: Date.now()
+            });
+
+            // Update UI to reflect stopped state
+            document.getElementById('mobileSystemStatus').textContent = 'Stopped';
+            document.getElementById('mobileSystemStatus').className = 'text-lg font-bold text-red-400';
+
+            // Show confirmation
+            setTimeout(() => {
+                alert('Emergency stop completed. All trading activity has been halted.');
+            }, 1000);
+        }
+
+        function toggleTradingPause() {
+            const btn = document.getElementById('pauseTradingBtn');
+            const isPaused = btn.textContent.includes('Pause');
+
+            if (isPaused) {
+                btn.innerHTML = '<i class="fas fa-play-circle mr-2"></i>Resume Trading';
+                btn.className = 'bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors';
+
+                showPushNotification({
+                    type: 'INFO',
+                    title: 'Trading Paused',
+                    message: 'Trading has been temporarily paused',
+                    timestamp: Date.now()
+                });
+            } else {
+                btn.innerHTML = '<i class="fas fa-pause-circle mr-2"></i>Pause Trading';
+                btn.className = 'bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors';
+
+                showPushNotification({
+                    type: 'INFO',
+                    title: 'Trading Resumed',
+                    message: 'Trading has been resumed',
+                    timestamp: Date.now()
+                });
+            }
+        }
+
+        function toggleRiskControls() {
+            const content = document.getElementById('riskControlsContent');
+            const icon = document.querySelector('#expandRiskControls i');
+
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.className = 'fas fa-chevron-up';
+            } else {
+                content.style.display = 'none';
+                icon.className = 'fas fa-chevron-down';
+            }
+        }
+
+        function openRiskEditor(type) {
+            // In a real implementation, open a modal to edit risk parameters
+            const value = prompt(`Enter new ${type} value:`);
+            if (value) {
+                updateRiskParameter(type, value);
+            }
+        }
+
+        function updateRiskParameter(type, value) {
+            // Update UI and call API to update risk parameters
+            showPushNotification({
+                type: 'INFO',
+                title: 'Risk Parameter Updated',
+                message: `${type} has been updated to ${value}`,
+                timestamp: Date.now()
+            });
+        }
+
+        function navigateToPage(page) {
+            // Simple navigation - in real app, this would load different content
+            console.log(`Navigating to ${page}`);
+        }
+
+        async function loadDashboardData() {
+            try {
+                dashboardData = await simulateDashboardAPI();
+                updateDashboard();
+                updateLastRefreshTime();
+            } catch (error) {
+                console.error('Failed to load dashboard data:', error);
+                showError('Failed to load dashboard data');
+            }
+        }
+
+        async function loadPositions() {
+            // Simulate loading positions
+            const positions = generateMockPositions();
+            updatePositionsList(positions);
+        }
+
+        function updateDashboard() {
+            if (!dashboardData) return;
+
+            updateMobileStats();
+            updateExchangeStatus();
+            updateArbitrageOpportunities();
+            updateCharts();
+            updateRiskMetrics();
+            loadPositions();
+        }
+
+        function updateMobileStats() {
+            // Update mobile-specific stats
+            const dailyPnL = dashboardData.arbitrage.statistics.totalProfit || 0;
+            const dailyPnLPercent = ((dailyPnL / 50000) * 100).toFixed(1);
+
+            document.getElementById('mobileDailyPnL').textContent = `+$${dailyPnL.toFixed(2)}`;
+            document.getElementById('mobilePnLPercent').textContent = `+${dailyPnLPercent}%`;
+            document.getElementById('mobilePnLPercent').className = dailyPnL >= 0 ? 'text-xs text-green-400' : 'text-xs text-red-400';
+
+            document.getElementById('mobileActiveTrades').textContent = dashboardData.arbitrage.opportunities.length || 0;
+            document.getElementById('mobileOpenPositions').textContent = '0 positions';
+
+            const allOnline = dashboardData.exchanges.binance.status === 'ONLINE' &&
+                             dashboardData.exchanges.bitkub.status === 'ONLINE';
+
+            document.getElementById('mobileSystemStatus').textContent = allOnline ? 'Online' : 'Issues Detected';
+            document.getElementById('mobileSystemStatus').className = `text-lg font-bold ${allOnline ? 'text-green-400' : 'text-red-400'}`;
+        }
+
+        function updateRiskMetrics() {
+            // Update risk control displays
+            const dailyLossLimit = 1000;
+            const currentLoss = Math.abs(Math.random() * 500);
+            const lossPercent = (currentLoss / dailyLossLimit) * 100;
+
+            document.getElementById('dailyLossValue').textContent = `-$${currentLoss.toFixed(0)}`;
+            document.getElementById('dailyLossPercent').textContent = `-${lossPercent.toFixed(1)}%`;
+            document.getElementById('dailyLossBar').style.width = `${Math.min(lossPercent, 100)}%`;
+
+            const maxPositionSize = 1000;
+            const currentPositionSize = Math.random() * 800;
+            const positionPercent = (currentPositionSize / maxPositionSize) * 100;
+
+            document.getElementById('positionSizeValue').textContent = `$${currentPositionSize.toFixed(0)}`;
+            document.getElementById('positionSizeBar').style.width = `${positionPercent}%`;
+
+            const exposurePercent = Math.random() * 25;
+            const exposureAmount = exposurePercent * 500;
+
+            document.getElementById('exposureValue').textContent = `${exposurePercent.toFixed(0)}%`;
+            document.getElementById('exposureAmount').textContent = `$${exposureAmount.toFixed(0)}`;
+            document.getElementById('exposureBar').style.width = `${exposurePercent * 4}%`;
+        }
+
+        function updatePositionsList(positions) {
+            const container = document.getElementById('positionsList');
+
+            if (!positions || positions.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fas fa-wallet text-4xl mb-2 opacity-50"></i>
+                        <p>No active positions</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = positions.map(position => `
+                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center">
+                            <span class="text-lg font-bold">${position.symbol}</span>
+                            <span class="ml-2 px-2 py-1 ${position.side === 'BUY' ? 'bg-green-500' : 'bg-red-500'} bg-opacity-20 ${position.side === 'BUY' ? 'text-green-400' : 'text-red-400'} rounded text-xs">
+                                ${position.side}
+                            </span>
+                        </div>
+                        <span class="font-mono ${position.pnl >= 0 ? 'text-green-400' : 'text-red-400'}">
+                            ${position.pnl >= 0 ? '+' : ''}$${position.pnl.toFixed(2)}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm text-gray-400">
+                        <div>Size: ${position.quantity}</div>
+                        <div>Entry: $${position.entryPrice.toFixed(2)}</div>
+                        <div>Current: $${position.currentPrice.toFixed(2)}</div>
+                        <div>P&L: ${((position.currentPrice - position.entryPrice) / position.entryPrice * 100).toFixed(2)}%</div>
+                    </div>
+                    <div class="flex justify-between items-center mt-3">
+                        <div class="flex space-x-2">
+                            <button class="text-blue-400 hover:text-blue-300 text-sm">
+                                <i class="fas fa-chart-line mr-1"></i>Chart
+                            </button>
+                            <button class="text-yellow-400 hover:text-yellow-300 text-sm">
+                                <i class="fas fa-edit mr-1"></i>Edit
+                            </button>
+                        </div>
+                        <button class="text-red-400 hover:text-red-300 text-sm">
+                            <i class="fas fa-times mr-1"></i>Close
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function generateMockPositions() {
+            const positions = [];
+            const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
+
+            for (let i = 0; i < 2; i++) {
+                const symbol = symbols[i];
+                const side = Math.random() > 0.5 ? 'BUY' : 'SELL';
+                const entryPrice = 45000 + Math.random() * 5000;
+                const currentPrice = entryPrice + (Math.random() - 0.5) * 2000;
+                const quantity = Math.random() * 0.5 + 0.1;
+                const pnl = (currentPrice - entryPrice) * quantity;
+
+                positions.push({
+                    symbol,
+                    side,
+                    quantity,
+                    entryPrice,
+                    currentPrice,
+                    pnl
+                });
+            }
+
+            return positions;
+        }
+
+        function initializeCharts() {
+            // Initialize profit chart
+            const profitCtx = document.getElementById('profitChart').getContext('2d');
+            charts.profit = new Chart(profitCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'P&L',
+                        data: [],
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: 'white' } }
+                    },
+                    scales: {
+                        x: { ticks: { color: 'white' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+                        y: { ticks: { color: 'white' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
+                    }
+                }
+            });
+
+            // Initialize latency chart
+            const latencyCtx = document.getElementById('latencyChart').getContext('2d');
+            charts.latency = new Chart(latencyCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Binance',
+                        data: [],
+                        borderColor: 'rgb(255, 159, 64)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        tension: 0.1
+                    }, {
+                        label: 'Bitkub',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: 'white' } }
+                    },
+                    scales: {
+                        x: { ticks: { color: 'white' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+                        y: { ticks: { color: 'white' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            // Update profit chart
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString();
+
+            if (charts.profit.data.labels.length > 20) {
+                charts.profit.data.labels.shift();
+                charts.profit.data.datasets[0].data.shift();
+            }
+
+            charts.profit.data.labels.push(timeLabel);
+            charts.profit.data.datasets[0].data.push(dashboardData.arbitrage.statistics.totalProfit || 0);
+            charts.profit.update();
+
+            // Update latency chart
+            if (charts.latency.data.labels.length > 20) {
+                charts.latency.data.labels.shift();
+                charts.latency.data.datasets[0].data.shift();
+                charts.latency.data.datasets[1].data.shift();
+            }
+
+            charts.latency.data.labels.push(timeLabel);
+            charts.latency.data.datasets[0].data.push(dashboardData.exchanges.binance.connectivity.responseTime);
+            charts.latency.data.datasets[1].data.push(dashboardData.exchanges.bitkub.connectivity.responseTime);
+            charts.latency.update();
+        }
+
+        function updateExchangeStatus() {
+            updateExchangeCard('binance', dashboardData.exchanges.binance);
+            updateExchangeCard('bitkub', dashboardData.exchanges.bitkub);
+        }
+
+        function updateExchangeCard(exchange, data) {
+            const statusElement = document.getElementById(`${exchange}Status`);
+            const statusText = document.getElementById(`${exchange}StatusText`);
+
+            statusText.textContent = data.status;
+
+            if (data.status === 'ONLINE') {
+                statusElement.className = 'px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-semibold bg-green-500 text-white';
+            } else if (data.status === 'DEGRADED') {
+                statusElement.className = 'px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-semibold bg-yellow-500 text-white';
+            } else {
+                statusElement.className = 'px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-semibold bg-red-500 text-white';
+            }
+
+            document.getElementById(`${exchange}Latency`).textContent = `${data.connectivity.responseTime}ms`;
+            document.getElementById(`${exchange}Volume`).textContent = `$${(data.trading.dailyVolume / 1000000).toFixed(1)}M`;
+            document.getElementById(`${exchange}Orders`).textContent = data.trading.activeOrders;
+            document.getElementById(`${exchange}Balance`).textContent = `$${data.balances.totalValue.toLocaleString()}`;
+
+            // Update markets
+            const marketsContainer = document.getElementById(`${exchange}Markets`);
+            marketsContainer.innerHTML = data.markets.slice(0, 3).map(market => `
+                <div class="flex justify-between items-center py-1 border-b border-gray-800">
+                    <span class="text-xs md:text-sm">${market.symbol}</span>
+                    <span class="${market.change24h >= 0 ? 'text-green-400' : 'text-red-400'} text-xs md:text-sm">
+                        ${market.change24h >= 0 ? '+' : ''}${market.change24h}%
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function updateArbitrageOpportunities() {
+            const container = document.getElementById('mobileArbitrageList');
+            const minProfit = parseFloat(document.getElementById('minProfitFilter').value);
+
+            const filteredOpportunities = dashboardData.arbitrage.opportunities.filter(
+                opp => opp.profitability.profitPercent >= minProfit
+            );
+
+            if (filteredOpportunities.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fas fa-coins text-4xl mb-2 opacity-50"></i>
+                        <p>No opportunities meet criteria</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredOpportunities.slice(0, 5).map(opp => `
+                <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 mobile-slide-up">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center">
+                            <span class="font-mono text-sm md:text-base">${opp.symbol}</span>
+                            <span class="ml-2 px-2 py-1 bg-blue-500 bg-opacity-20 text-blue-400 rounded text-xs">
+                                ${opp.type}
+                            </span>
+                        </div>
+                        <span class="text-green-400 font-bold">
+                            +${opp.profitability.profitPercent.toFixed(2)}%
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs md:text-sm text-gray-400 mb-3">
+                        <div>Buy: ${opp.exchanges.buy.toUpperCase()}</div>
+                        <div>Sell: ${opp.exchanges.sell.toUpperCase()}</div>
+                        <div>Est. Profit: $${opp.profitability.netProfit.toFixed(2)}</div>
+                        <div>Risk: ${opp.execution.riskLevel}</div>
+                    </div>
+                    <button onclick="executeArbitrage('${opp.id}')"
+                            class="w-full bg-green-600 hover:bg-green-700 py-2 rounded text-sm font-semibold transition-colors">
+                        <i class="fas fa-play mr-2"></i>Execute Trade
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function addNotification(alert) {
+            notifications.unshift(alert);
+            if (notifications.length > 50) notifications.pop();
+            updateNotificationsList();
+            updateNotificationBadge();
+        }
+
+        function updateNotificationsList() {
+            const container = document.getElementById('notificationsList');
+
+            if (notifications.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fas fa-bell-slash text-4xl mb-2 opacity-50"></i>
+                        <p>No notifications</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = notifications.slice(0, 20).map(notification => {
+                const alertClass = notification.type === 'CRITICAL' ? 'border-red-500 bg-red-500 bg-opacity-10' :
+                                 notification.type === 'WARNING' ? 'border-yellow-500 bg-yellow-500 bg-opacity-10' :
+                                 'border-blue-500 bg-blue-500 bg-opacity-10';
+
+                const iconClass = notification.type === 'CRITICAL' ? 'fa-exclamation-triangle text-red-500' :
+                                notification.type === 'WARNING' ? 'fa-exclamation-circle text-yellow-500' :
+                                'fa-info-circle text-blue-500';
+
+                return `
+                    <div class="${alertClass} border rounded-lg p-4 mb-3">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start">
+                                <i class="fas ${iconClass} mr-3 mt-1"></i>
+                                <div class="flex-1">
+                                    <h4 class="font-semibold text-sm">${notification.title}</h4>
+                                    <p class="text-xs text-gray-300 mt-1">${notification.message}</p>
+                                    <p class="text-xs text-gray-500 mt-2">${new Date(notification.timestamp).toLocaleTimeString()}</p>
+                                </div>
+                            </div>
+                            <button onclick="removeNotification('${notification.id}')" class="text-gray-400 hover:text-white ml-2">
+                                <i class="fas fa-times text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateNotificationBadge() {
+            const badge = document.getElementById('notificationBadge');
+            const unreadCount = notifications.filter(n => !n.read).length;
+            badge.textContent = unreadCount;
+            badge.style.display = unreadCount > 0 ? 'flex' : 'none';
+        }
+
+        function removeNotification(id) {
+            notifications = notifications.filter(n => n.id !== id);
+            updateNotificationsList();
+            updateNotificationBadge();
+        }
+
+        function showPushNotification(alert) {
+            if ('Notification' in navigator && Notification.permission === 'granted') {
+                new Notification(alert.title, {
+                    body: alert.message,
+                    icon: '/favicon.ico',
+                    tag: alert.id,
+                    requireInteraction: alert.type === 'CRITICAL'
+                });
+            }
+        }
+
+        function dismissCriticalAlert() {
+            document.getElementById('criticalAlertBanner').classList.add('hidden');
+        }
+
+        function executeArbitrage(opportunityId) {
+            if (confirm(`Execute arbitrage opportunity ${opportunityId}?`)) {
+                showPushNotification({
+                    type: 'INFO',
+                    title: 'Arbitrage Executed',
+                    message: `Opportunity ${opportunityId} has been executed`,
+                    timestamp: Date.now()
+                });
+            }
+        }
+
+        function updateLastRefreshTime() {
+            const now = new Date();
+            // Update mobile refresh indicator if present
+        }
+
+        function startAutoRefresh() {
+            const interval = isMobile ? 15000 : 5000; // Slower refresh on mobile
+            refreshInterval = setInterval(loadDashboardData, interval);
+        }
+
+        // Mock data functions (reuse from original dashboard)
+        async function simulateDashboardAPI() {
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            return {
+                timestamp: Date.now(),
+                exchanges: {
+                    binance: {
+                        name: 'BINANCE',
+                        status: 'ONLINE',
+                        connectivity: { api: true, responseTime: Math.floor(Math.random() * 200) + 50 },
+                        trading: { dailyVolume: Math.floor(Math.random() * 100000000) + 50000000, activeOrders: Math.floor(Math.random() * 20) + 5 },
+                        balances: { totalValue: Math.floor(Math.random() * 50000) + 10000 },
+                        markets: [
+                            { symbol: 'BTCUSDT', price: 45000, change24h: 2.5, volume24h: 1000000 },
+                            { symbol: 'ETHUSDT', price: 3000, change24h: -1.2, volume24h: 800000 },
+                            { symbol: 'BNBUSDT', price: 400, change24h: 5.8, volume24h: 600000 }
+                        ]
+                    },
+                    bitkub: {
+                        name: 'BITKUB',
+                        status: 'ONLINE',
+                        connectivity: { api: true, responseTime: Math.floor(Math.random() * 300) + 100 },
+                        trading: { dailyVolume: Math.floor(Math.random() * 50000000) + 20000000, activeOrders: Math.floor(Math.random() * 10) + 2 },
+                        balances: { totalValue: Math.floor(Math.random() * 30000) + 5000 },
+                        markets: [
+                            { symbol: 'THB_BTC', price: 1500000, change24h: 2.8, volume24h: 50000000 },
+                            { symbol: 'THB_ETH', price: 100000, change24h: -1.5, volume24h: 30000000 },
+                            { symbol: 'THB_BNB', price: 13333, change24h: 6.2, volume24h: 20000000 }
+                        ]
+                    }
+                },
+                arbitrage: {
+                    opportunities: generateMockArbitrageOpportunities(),
+                    statistics: {
+                        totalOpportunities: 12,
+                        executedToday: 8,
+                        successRate: 87.5,
+                        totalProfit: 1250.50,
+                        averageProfit: 156.31
+                    }
+                }
+            };
+        }
+
+        function generateMockArbitrageOpportunities() {
+            const opportunities = [];
+            const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'DOTUSDT'];
+
+            for (let i = 0; i < 5; i++) {
+                const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+                const profitPercent = Math.random() * 3 + 0.2;
+
+                opportunities.push({
+                    id: `arb_${i}`,
+                    symbol,
+                    type: 'SIMPLE',
+                    exchanges: {
+                        buy: Math.random() > 0.5 ? 'binance' : 'bitkub',
+                        sell: Math.random() > 0.5 ? 'binance' : 'bitkub'
+                    },
+                    prices: { spreadPercent: profitPercent + 0.1 },
+                    profitability: {
+                        profitPercent,
+                        netProfit: profitPercent * 1000 * (Math.random() * 5 + 1)
+                    },
+                    execution: {
+                        riskLevel: profitPercent > 2 ? 'HIGH' : profitPercent > 1 ? 'MEDIUM' : 'LOW'
+                    }
+                });
+            }
+
+            return opportunities.sort((a, b) => b.profitability.profitPercent - a.profitability.profitPercent);
+        }
+
+        function generateMockAlert() {
+            const types = ['INFO', 'WARNING', 'CRITICAL'];
+            const type = types[Math.floor(Math.random() * types.length)];
+
+            const alerts = {
+                INFO: {
+                    title: 'New Opportunity',
+                    message: 'High-profit arbitrage detected'
+                },
+                WARNING: {
+                    title: 'High Latency',
+                    message: 'API response time is elevated'
+                },
+                CRITICAL: {
+                    title: 'Price Alert',
+                    message: 'BTC price exceeded threshold'
+                }
+            };
+
+            return {
+                id: `alert_${Date.now()}`,
+                type,
+                ...alerts[type],
+                timestamp: Date.now(),
+                read: false
+            };
+        }
+
+        function showError(message) {
+            console.error(message);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const wasMobile = isMobile;
+            isMobile = window.innerWidth <= 768;
+
+            if (wasMobile !== isMobile) {
+                // Reinitialize charts for new layout
+                Object.values(charts).forEach(chart => {
+                    if (chart) chart.resize();
+                });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -17,5 +17,19 @@ export declare const dashboardConfig: {
 export declare function validateConfig(): void;
 export declare const isDevelopment: boolean;
 export declare const isProduction: boolean;
+export declare const isStaging: boolean;
 export declare const isTest: boolean;
+export declare const environmentFeatures: {
+    isProduction: boolean;
+    isStaging: boolean;
+    isDevelopment: boolean;
+    isTest: boolean;
+    canUseRealTrading: boolean;
+    requiresAuthentication: boolean;
+    requiresBackups: boolean;
+    requiresRateLimiting: boolean;
+    allowsDebugMode: boolean;
+    allowsHotReload: boolean;
+    requiresPaperTrading: boolean;
+};
 //# sourceMappingURL=index.d.ts.map

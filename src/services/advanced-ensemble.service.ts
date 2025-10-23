@@ -6,7 +6,7 @@
  */
 
 import { MultiAIService } from './multi-ai.service';
-import { tradingLogger } from '@/utils/logger';
+import { tradingLogger, logger } from '@/utils/logger';
 import { AISignal, ProviderMetrics } from '@/types/ai.types';
 import { tradingConfig } from '@/config';
 
@@ -85,7 +85,77 @@ export class AdvancedEnsembleService {
   private lastRebalance: number = 0;
 
   private constructor() {
-    this.multiAIService = MultiAIService.getInstance();
+    // Initialize MultiAIService with default configurations
+    const providerConfigs: Record<string, any> = {
+      'openai': {
+        name: 'OpenAI',
+        enabled: false,
+        apiKey: process.env.OPENAI_API_KEY || '',
+        models: ['gpt-4', 'gpt-3.5-turbo'],
+        defaultModel: 'gpt-4',
+        maxTokens: 4096,
+        temperature: 0.7,
+        timeout: 30000,
+        rateLimit: {
+          requestsPerMinute: 60,
+          tokensPerMinute: 90000
+        },
+        pricing: {
+          inputTokenCost: 0.00003,
+          outputTokenCost: 0.00006
+        },
+        weights: {
+          accuracy: 0.5,
+          speed: 0.3,
+          cost: 0.2
+        }
+      },
+      'claude': {
+        name: 'Claude',
+        enabled: false,
+        apiKey: process.env.CLAUDE_API_KEY || '',
+        models: ['claude-3-sonnet', 'claude-3-haiku'],
+        defaultModel: 'claude-3-sonnet',
+        maxTokens: 4096,
+        temperature: 0.7,
+        timeout: 30000,
+        rateLimit: {
+          requestsPerMinute: 50,
+          tokensPerMinute: 100000
+        },
+        pricing: {
+          inputTokenCost: 0.000015,
+          outputTokenCost: 0.000075
+        },
+        weights: {
+          accuracy: 0.5,
+          speed: 0.3,
+          cost: 0.2
+        }
+      }
+    };
+
+    const ensembleConfig = {
+      minProviders: 1,
+      maxProviders: 3,
+      consensusThreshold: 0.65,
+      disagreementThreshold: 0.3,
+      fallbackStrategy: 'MAJORITY' as const,
+      weights: {
+        accuracy: 0.5,
+        speed: 0.3,
+        cost: 0.2,
+        diversity: 0.2
+      },
+      rebalancing: {
+        enabled: true,
+        frequency: 24,
+        performanceWindow: 100,
+        minSamples: 10
+      }
+    };
+
+    this.multiAIService = new MultiAIService(providerConfigs, ensembleConfig);
     this.config = {
       consensusThreshold: 0.65,
       disagreementThreshold: 0.3,
@@ -127,7 +197,7 @@ export class AdvancedEnsembleService {
       );
 
       // Generate ensemble decision with context-aware prompts
-      const ensembleResult = await this.multiAIService.getEnsembleDecision(
+      const ensembleResult = await this.multiAIService.generateEnsembleDecision(
         symbol,
         marketData,
         {
@@ -189,7 +259,7 @@ export class AdvancedEnsembleService {
 
     } catch (error) {
       const duration = performance.now() - startTime;
-      tradingLogger.error('Advanced ensemble decision failed', {
+      logger.error('Advanced ensemble decision failed', {
         symbol,
         error: error instanceof Error ? error.message : error,
         duration,
@@ -239,7 +309,7 @@ export class AdvancedEnsembleService {
       return condition;
 
     } catch (error) {
-      tradingLogger.warn('Market condition analysis failed', {
+      logger.warn('Market condition analysis failed', {
         symbol,
         error: error instanceof Error ? error.message : error,
       });
@@ -264,7 +334,7 @@ export class AdvancedEnsembleService {
     condition: MarketCondition,
     maxProviders: number
   ): Promise<string[]> {
-    const providerMetrics = this.multiAIService.getProviderMetrics();
+    const providerMetrics = await this.multiAIService.getAllProviderMetrics();
     const providerScores: Array<{ provider: string; score: number }> = [];
 
     for (const [provider, metrics] of Object.entries(providerMetrics)) {
@@ -347,7 +417,7 @@ export class AdvancedEnsembleService {
       };
 
     } catch (error) {
-      tradingLogger.warn('Performance prediction failed', {
+      logger.warn('Performance prediction failed', {
         error: error instanceof Error ? error.message : error,
       });
 
@@ -472,7 +542,7 @@ export class AdvancedEnsembleService {
         // Update ensemble weights
         await this.updateEnsembleWeights(feedback);
 
-        tradingLogger.info('Feedback processed for learning', {
+        logger.info('Feedback processed for learning', {
           decisionId: feedback.decisionId,
           outcome: feedback.actualOutcome,
           pnl: feedback.pnl,
@@ -485,7 +555,7 @@ export class AdvancedEnsembleService {
       }
 
     } catch (error) {
-      tradingLogger.error('Feedback processing failed', {
+      logger.error('Feedback processing failed', {
         decisionId: feedback.decisionId,
         error: error instanceof Error ? error.message : error,
       });
@@ -525,7 +595,8 @@ export class AdvancedEnsembleService {
 
     // Get provider performance
     const byProvider: Record<string, ProviderPerformance> = {};
-    for (const [provider] of this.multiAIService.getProviderMetrics()) {
+    const allMetrics = await this.multiAIService.getAllProviderMetrics();
+    for (const [provider] of Object.entries(allMetrics)) {
       byProvider[provider] = this.performanceHistory.get(provider)?.slice(-1)[0] || this.createDefaultProviderPerformance(provider);
     }
 
@@ -639,7 +710,7 @@ export class AdvancedEnsembleService {
   }
 
   private async rebalanceEnsemble(): Promise<void> {
-    tradingLogger.info('Rebalancing ensemble weights');
+    logger.info('Rebalancing ensemble weights');
     // Implementation would go here
   }
 
@@ -735,7 +806,7 @@ export class AdvancedEnsembleService {
    */
   updateConfig(newConfig: Partial<EnsembleConfig>): void {
     this.config = { ...this.config, ...newConfig };
-    tradingLogger.info('Ensemble configuration updated', { config: this.config });
+    logger.info('Ensemble configuration updated', { config: this.config });
   }
 
   /**

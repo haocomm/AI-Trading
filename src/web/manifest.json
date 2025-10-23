@@ -1,0 +1,140 @@
+{
+  "name": "AI Trading Platform - Mobile Dashboard",
+  "short_name": "AI Trading",
+  "description": "Advanced AI-powered cryptocurrency trading platform with real-time monitoring and mobile controls",
+  "start_url": "/mobile-enhanced-dashboard.html",
+  "display": "standalone",
+  "background_color": "#1f2937",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["finance", "business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Emergency Stop",
+      "short_name": "Stop Trading",
+      "description": "Immediately stop all trading activity",
+      "url": "/mobile-enhanced-dashboard.html?action=emergency-stop",
+      "icons": [{ "src": "/icons/emergency-stop.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "View Positions",
+      "short_name": "Positions",
+      "description": "View current trading positions",
+      "url": "/mobile-enhanced-dashboard.html#positions",
+      "icons": [{ "src": "/icons/positions.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Arbitrage Opportunities",
+      "short_name": "Arbitrage",
+      "description": "View active arbitrage opportunities",
+      "url": "/mobile-enhanced-dashboard.html#arbitrage",
+      "icons": [{ "src": "/icons/arbitrage.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Risk Controls",
+      "short_name": "Risk",
+      "description": "Adjust risk management settings",
+      "url": "/mobile-enhanced-dashboard.html#risk",
+      "icons": [{ "src": "/icons/risk.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-dashboard-1.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile dashboard showing real-time trading data"
+    },
+    {
+      "src": "/screenshots/desktop-dashboard-1.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop dashboard with advanced analytics"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+aitrading",
+      "url": "/mobile-enhanced-dashboard.html?action=%s"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/mobile-enhanced-dashboard.html",
+      "accept": {
+        "application/json": [".json"]
+      }
+    }
+  ],
+  "share_target": {
+    "action": "/mobile-enhanced-dashboard.html",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

@@ -253,4 +253,33 @@ export interface OptimizationStrategy {
     promptCompression: boolean;
     costThreshold: number;
 }
+export interface ProviderPricing {
+    provider: string;
+    inputTokenCost: number;
+    outputTokenCost: number;
+    currency: string;
+    model?: string;
+    tier?: string;
+}
+export interface CostOptimizationRequest {
+    request: AIProviderRequest;
+    strategy: OptimizationStrategy;
+    budget: number;
+    priority: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+export interface CostOptimizationResult {
+    optimizedRequest: AIProviderRequest;
+    estimatedCost: number;
+    savings: number;
+    optimizations: string[];
+}
+export interface AISignal {
+    symbol: string;
+    action: 'BUY' | 'SELL' | 'HOLD' | 'STRONG_BUY' | 'STRONG_SELL';
+    confidence: number;
+    reasoning: string;
+    provider: string;
+    timestamp: number;
+    metadata?: Record<string, any>;
+}
 //# sourceMappingURL=ai.types.d.ts.map

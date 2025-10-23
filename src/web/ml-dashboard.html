@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Trading Dashboard - AI Trading Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse-green {
+            0%, 100% { background-color: rgba(34, 197, 94, 0.1); }
+            50% { background-color: rgba(34, 197, 94, 0.2); }
+        }
+        @keyframes pulse-red {
+            0%, 100% { background-color: rgba(239, 68, 68, 0.1); }
+            50% { background-color: rgba(239, 68, 68, 0.2); }
+        }
+        .pulse-green { animation: pulse-green 2s infinite; }
+        .pulse-red { animation: pulse-red 2s infinite; }
+        .gradient-border {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+            padding: 1px;
+        }
+        .model-training { transition: all 0.3s ease; }
+        .prediction-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .prediction-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .progress-ring { transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .sentiment-bar { transition: width 0.5s ease; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50 backdrop-blur-lg bg-opacity-90">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-brain text-blue-500 text-xl"></i>
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                            ML Trading Dashboard
+                        </h1>
+                    </div>
+                    <span class="text-xs px-2 py-1 bg-green-500 bg-opacity-20 text-green-400 rounded-full">
+                        <i class="fas fa-circle text-green-400 text-xs mr-1"></i>
+                        Phase 3.1 Active
+                    </span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm text-gray-400">
+                        <i class="fas fa-clock mr-1"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm text-gray-400">ML Status:</span>
+                        <span id="mlStatus" class="px-2 py-1 bg-green-500 bg-opacity-20 text-green-400 rounded text-xs">
+                            Ready
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm">Active Models</span>
+                    <i class="fas fa-brain text-blue-500"></i>
+                </div>
+                <div class="text-2xl font-bold text-blue-400" id="activeModelsCount">0</div>
+                <div class="text-xs text-gray-500 mt-1">AI models trained</div>
+            </div>
+
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm">Today's Predictions</span>
+                    <i class="fas fa-chart-line text-green-500"></i>
+                </div>
+                <div class="text-2xl font-bold text-green-400" id="todayPredictions">0</div>
+                <div class="text-xs text-gray-500 mt-1">
+                    Accuracy: <span id="predictionAccuracy">0%</span>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm">Avg Confidence</span>
+                    <i class="fas fa-percentage text-purple-500"></i>
+                </div>
+                <div class="text-2xl font-bold text-purple-400" id="avgConfidence">0%</div>
+                <div class="text-xs text-gray-500 mt-1">Model confidence</div>
+            </div>
+
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm">Training Progress</span>
+                    <i class="fas fa-cog text-yellow-500 animate-spin" id="trainingSpinner"></i>
+                </div>
+                <div class="text-2xl font-bold text-yellow-400" id="trainingProgress">0%</div>
+                <div class="text-xs text-gray-500 mt-1">
+                    <span id="trainingStatus">Idle</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ML Models Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Model Management -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-200">
+                        <i class="fas fa-brain mr-2 text-blue-500"></i>
+                        ML Models
+                    </h2>
+                    <button onclick="createNewModel()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors">
+                        <i class="fas fa-plus mr-1"></i>New Model
+                    </button>
+                </div>
+
+                <div id="modelsList" class="space-y-3">
+                    <!-- Models will be populated here -->
+                </div>
+            </div>
+
+            <!-- Predictions -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-200">
+                        <i class="fas fa-crystal-ball mr-2 text-purple-500"></i>
+                        Latest Predictions
+                    </h2>
+                    <button onclick="generatePredictions()" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors">
+                        <i class="fas fa-sync mr-1"></i>Generate
+                    </button>
+                </div>
+
+                <div id="predictionsList" class="space-y-3">
+                    <!-- Predictions will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Model Performance & Sentiment -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Model Performance Chart -->
+            <div class="lg:col-span-2 bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-200">
+                        <i class="fas fa-chart-line mr-2 text-green-500"></i>
+                        Model Performance
+                    </h2>
+                    <select id="performanceTimeframe" onchange="updatePerformanceChart()" class="bg-gray-700 text-gray-300 text-sm px-2 py-1 rounded">
+                        <option value="1h">1 Hour</option>
+                        <option value="6h">6 Hours</option>
+                        <option value="24h" selected>24 Hours</option>
+                        <option value="7d">7 Days</option>
+                    </select>
+                </div>
+                <canvas id="performanceChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Market Sentiment -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-200">
+                        <i class="fas fa-heart mr-2 text-red-500"></i>
+                        Market Sentiment
+                    </h2>
+                    <button onclick="refreshSentiment()" class="text-gray-400 hover:text-gray-300">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Fear & Greed Index -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Fear & Greed Index</span>
+                            <span class="text-sm font-bold" id="fearGreedValue">--</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2">
+                            <div id="fearGreedBar" class="sentiment-bar h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Social Sentiment -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Social Sentiment</span>
+                            <span class="text-sm font-bold" id="socialSentimentValue">--</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2">
+                            <div id="socialSentimentBar" class="sentiment-bar h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Technical Sentiment -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Technical Analysis</span>
+                            <span class="text-sm font-bold" id="technicalSentimentValue">--</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2">
+                            <div id="technicalSentimentBar" class="sentiment-bar h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backtesting & Model Training -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Quick Backtest -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-200">
+                        <i class="fas fa-history mr-2 text-orange-500"></i>
+                        Quick Backtest
+                    </h2>
+                    <button onclick="showBacktestModal()" class="px-3 py-1 bg-orange-600 hover:bg-orange-700 rounded text-sm transition-colors">
+                        <i class="fas fa-play mr-1"></i>Run Backtest
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs text-gray-400">Symbol</label>
+                            <select id="backtestSymbol" class="w-full bg-gray-700 text-gray-300 text-sm px-2 py-1 rounded">
+                                <option value="BTCUSDT">BTC/USDT</option>
+                                <option value="ETHUSDT">ETH/USDT</option>
+                                <option value="BNBUSDT">BNB/USDT</option>
+                                <option value="ADAUSDT">ADA/USDT</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400">Strategy</label>
+                            <select id="backtestStrategy" class="w-full bg-gray-700 text-gray-300 text-sm px-2 py-1 rounded">
+                                <option value="ml-based">ML-Based</option>
+                                <option value="technical">Technical</option>
+                                <option value="mixed">Mixed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="backtestResults" class="hidden">
+                        <div class="bg-gray-700 rounded p-3 space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-400">Total Return:</span>
+                                <span class="font-bold" id="backtestReturn">--</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-400">Sharpe Ratio:</span>
+                                <span class="font-bold" id="backtestSharpe">--</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-400">Max Drawdown:</span>
+                                <span class="font-bold" id="backtestDrawdown">--</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-400">Win Rate:</span>
+                                <span class="font-bold" id="backtestWinRate">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Training Queue -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-200">
+                        <i class="fas fa-cogs mr-2 text-cyan-500"></i>
+                        Training Queue
+                    </h2>
+                    <button onclick="showTrainingModal()" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-700 rounded text-sm transition-colors">
+                        <i class="fas fa-plus mr-1"></i>Queue Model
+                    </button>
+                </div>
+
+                <div id="trainingQueue" class="space-y-3">
+                    <!-- Training queue items will be populated here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Model Creation Modal -->
+    <div id="modelModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold mb-4">Create New ML Model</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="text-sm text-gray-400">Symbol</label>
+                    <select id="modelSymbol" class="w-full bg-gray-700 text-gray-300 px-3 py-2 rounded">
+                        <option value="BTCUSDT">BTC/USDT</option>
+                        <option value="ETHUSDT">ETH/USDT</option>
+                        <option value="BNBUSDT">BNB/USDT</option>
+                        <option value="ADAUSDT">ADA/USDT</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-sm text-gray-400">Timeframe</label>
+                    <select id="modelTimeframe" class="w-full bg-gray-700 text-gray-300 px-3 py-2 rounded">
+                        <option value="1m">1 Minute</option>
+                        <option value="5m">5 Minutes</option>
+                        <option value="15m">15 Minutes</option>
+                        <option value="1h" selected>1 Hour</option>
+                        <option value="4h">4 Hours</option>
+                        <option value="1d">1 Day</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-sm text-gray-400">Model Type</label>
+                    <select id="modelType" class="w-full bg-gray-700 text-gray-300 px-3 py-2 rounded">
+                        <option value="price-prediction">Price Prediction</option>
+                        <option value="trend-detection">Trend Detection</option>
+                        <option value="volatility-forecast">Volatility Forecast</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 mt-6">
+                <button onclick="closeModelModal()" class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded transition-colors">
+                    Cancel
+                </button>
+                <button onclick="submitCreateModel()" class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors">
+                    Create Model
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let performanceChart = null;
+        let models = new Map();
+        let predictions = [];
+        let trainingQueue = [];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeDashboard();
+            updateTime();
+            setInterval(updateTime, 1000);
+            setInterval(refreshData, 30000); // Refresh every 30 seconds
+        });
+
+        function initializeDashboard() {
+            initializePerformanceChart();
+            loadModels();
+            loadPredictions();
+            loadSentimentData();
+            updateStats();
+        }
+
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+        }
+
+        async function refreshData() {
+            try {
+                await Promise.all([
+                    loadModels(),
+                    loadPredictions(),
+                    loadSentimentData(),
+                    updateStats()
+                ]);
+            } catch (error) {
+                console.error('Failed to refresh data:', error);
+            }
+        }
+
+        function initializePerformanceChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Model Accuracy',
+                        data: [],
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        tension: 0.1
+                    }, {
+                        label: 'Prediction Accuracy',
+                        data: [],
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'hour'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(255, 255, 255, 0.9)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadModels() {
+            try {
+                // Mock API call - replace with actual API
+                const mockModels = [
+                    {
+                        id: 'btc_1h_price',
+                        symbol: 'BTCUSDT',
+                        timeframe: '1h',
+                        type: 'price-prediction',
+                        accuracy: 0.85,
+                        lastTrained: new Date('2024-01-15T10:00:00Z'),
+                        status: 'active',
+                        predictions: 145
+                    },
+                    {
+                        id: 'eth_1h_trend',
+                        symbol: 'ETHUSDT',
+                        timeframe: '1h',
+                        type: 'trend-detection',
+                        accuracy: 0.78,
+                        lastTrained: new Date('2024-01-15T09:30:00Z'),
+                        status: 'training',
+                        predictions: 89
+                    }
+                ];
+
+                displayModels(mockModels);
+                updatePerformanceChart(mockModels);
+            } catch (error) {
+                console.error('Failed to load models:', error);
+            }
+        }
+
+        function displayModels(modelData) {
+            const container = document.getElementById('modelsList');
+            container.innerHTML = '';
+
+            modelData.forEach(model => {
+                const modelCard = createModelCard(model);
+                container.appendChild(modelCard);
+            });
+        }
+
+        function createModelCard(model) {
+            const div = document.createElement('div');
+            div.className = 'bg-gray-700 rounded-lg p-4 border border-gray-600 model-training';
+
+            const statusColor = model.status === 'active' ? 'green' : 'yellow';
+            const statusText = model.status === 'active' ? 'Active' : 'Training';
+
+            div.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <div>
+                        <div class="font-semibold text-gray-200">${model.symbol} - ${model.timeframe}</div>
+                        <div class="text-xs text-gray-400">${model.type.replace('-', ' ')}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs px-2 py-1 bg-${statusColor}-500 bg-opacity-20 text-${statusColor}-400 rounded">
+                            ${statusText}
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <span class="text-gray-400">Accuracy:</span>
+                        <span class="ml-1 font-bold text-blue-400">${(model.accuracy * 100).toFixed(1)}%</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-400">Predictions:</span>
+                        <span class="ml-1">${model.predictions}</span>
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500 mt-2">
+                    Last trained: ${new Date(model.lastTrained).toLocaleString()}
+                </div>
+            `;
+
+            return div;
+        }
+
+        async function loadPredictions() {
+            try {
+                // Mock predictions data
+                const mockPredictions = [
+                    {
+                        symbol: 'BTCUSDT',
+                        currentPrice: 42500,
+                        prediction: 43200,
+                        confidence: 0.82,
+                        trend: 'bullish',
+                        timestamp: new Date()
+                    },
+                    {
+                        symbol: 'ETHUSDT',
+                        currentPrice: 2250,
+                        prediction: 2180,
+                        confidence: 0.75,
+                        trend: 'bearish',
+                        timestamp: new Date()
+                    }
+                ];
+
+                displayPredictions(mockPredictions);
+            } catch (error) {
+                console.error('Failed to load predictions:', error);
+            }
+        }
+
+        function displayPredictions(predictionData) {
+            const container = document.getElementById('predictionsList');
+            container.innerHTML = '';
+
+            predictionData.forEach(prediction => {
+                const predictionCard = createPredictionCard(prediction);
+                container.appendChild(predictionCard);
+            });
+        }
+
+        function createPredictionCard(prediction) {
+            const div = document.createElement('div');
+            div.className = 'bg-gray-700 rounded-lg p-4 prediction-card';
+
+            const priceChange = ((prediction.prediction - prediction.currentPrice) / prediction.currentPrice) * 100;
+            const trendColor = prediction.trend === 'bullish' ? 'green' : 'red';
+            const trendIcon = prediction.trend === 'bullish' ? 'arrow-up' : 'arrow-down';
+
+            div.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <div class="font-semibold text-gray-200">${prediction.symbol}</div>
+                    <div class="text-xs px-2 py-1 bg-${trendColor}-500 bg-opacity-20 text-${trendColor}-400 rounded">
+                        <i class="fas fa-${trendIcon} mr-1"></i>${prediction.trend}
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <span class="text-gray-400">Current:</span>
+                        <span class="ml-1">$${prediction.currentPrice.toLocaleString()}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-400">Prediction:</span>
+                        <span class="ml-1">$${prediction.prediction.toLocaleString()}</span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between mt-2">
+                    <div class="text-sm">
+                        <span class="text-gray-400">Change:</span>
+                        <span class="ml-1 font-bold ${priceChange > 0 ? 'text-green-400' : 'text-red-400'}">
+                            ${priceChange > 0 ? '+' : ''}${priceChange.toFixed(2)}%
+                        </span>
+                    </div>
+                    <div class="text-xs text-gray-400">
+                        Confidence: ${(prediction.confidence * 100).toFixed(0)}%
+                    </div>
+                </div>
+            `;
+
+            return div;
+        }
+
+        async function loadSentimentData() {
+            try {
+                // Mock sentiment data
+                const fearGreedValue = 65;
+                const socialSentiment = 0.3;
+                const technicalSentiment = 0.6;
+
+                updateSentimentDisplay('fearGreed', fearGreedValue / 100, fearGreedValue);
+                updateSentimentDisplay('socialSentiment', socialSentiment, socialSentiment);
+                updateSentimentDisplay('technicalSentiment', technicalSentiment, technicalSentiment);
+            } catch (error) {
+                console.error('Failed to load sentiment data:', error);
+            }
+        }
+
+        function updateSentimentDisplay(type, value, rawValue) {
+            const bar = document.getElementById(`${type}Bar`);
+            const valueElement = document.getElementById(`${type}Value`);
+
+            if (bar && valueElement) {
+                const percentage = Math.abs(value) * 100;
+                bar.style.width = `${percentage}%`;
+
+                if (type === 'fearGreed') {
+                    bar.className = 'sentiment-bar h-2 rounded-full';
+                    if (rawValue < 25) {
+                        bar.classList.add('bg-red-500');
+                        valueElement.textContent = 'Extreme Fear';
+                    } else if (rawValue < 45) {
+                        bar.classList.add('bg-orange-500');
+                        valueElement.textContent = 'Fear';
+                    } else if (rawValue < 55) {
+                        bar.classList.add('bg-yellow-500');
+                        valueElement.textContent = 'Neutral';
+                    } else if (rawValue < 75) {
+                        bar.classList.add('bg-green-500');
+                        valueElement.textContent = 'Greed';
+                    } else {
+                        bar.classList.add('bg-red-600');
+                        valueElement.textContent = 'Extreme Greed';
+                    }
+                    valueElement.textContent += ` (${rawValue})`;
+                } else {
+                    bar.className = 'sentiment-bar h-2 rounded-full';
+                    if (value > 0.1) {
+                        bar.classList.add('bg-green-500');
+                        valueElement.textContent = 'Bullish';
+                    } else if (value < -0.1) {
+                        bar.classList.add('bg-red-500');
+                        valueElement.textContent = 'Bearish';
+                    } else {
+                        bar.classList.add('bg-yellow-500');
+                        valueElement.textContent = 'Neutral';
+                    }
+                    valueElement.textContent = `${(value * 100).toFixed(0)}%`;
+                }
+            }
+        }
+
+        async function updateStats() {
+            try {
+                // Update stats with mock data
+                document.getElementById('activeModelsCount').textContent = '2';
+                document.getElementById('todayPredictions').textContent = '234';
+                document.getElementById('predictionAccuracy').textContent = '82.3%';
+                document.getElementById('avgConfidence').textContent = '76%';
+                document.getElementById('trainingProgress').textContent = '0%';
+                document.getElementById('trainingStatus').textContent = 'Idle';
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+            }
+        }
+
+        function updatePerformanceChart(modelsData) {
+            if (!performanceChart) return;
+
+            // Generate mock performance data
+            const now = new Date();
+            const modelAccuracyData = [];
+            const predictionAccuracyData = [];
+
+            for (let i = 24; i >= 0; i--) {
+                const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+                modelAccuracyData.push({
+                    x: time,
+                    y: 75 + Math.random() * 20
+                });
+                predictionAccuracyData.push({
+                    x: time,
+                    y: 70 + Math.random() * 25
+                });
+            }
+
+            performanceChart.data.datasets[0].data = modelAccuracyData;
+            performanceChart.data.datasets[1].data = predictionAccuracyData;
+            performanceChart.update();
+        }
+
+        function createNewModel() {
+            document.getElementById('modelModal').classList.remove('hidden');
+        }
+
+        function closeModelModal() {
+            document.getElementById('modelModal').classList.add('hidden');
+        }
+
+        async function submitCreateModel() {
+            const symbol = document.getElementById('modelSymbol').value;
+            const timeframe = document.getElementById('modelTimeframe').value;
+            const type = document.getElementById('modelType').value;
+
+            try {
+                // Mock model creation
+                const newModel = {
+                    id: `${symbol.toLowerCase()}_${timeframe}_${type}`,
+                    symbol,
+                    timeframe,
+                    type,
+                    accuracy: 0,
+                    lastTrained: new Date(),
+                    status: 'training',
+                    predictions: 0
+                };
+
+                // Add to models
+                if (!models.has(newModel.id)) {
+                    models.set(newModel.id, newModel);
+                    displayModels(Array.from(models.values()));
+                }
+
+                closeModelModal();
+
+                // Simulate training progress
+                simulateTraining(newModel.id);
+            } catch (error) {
+                console.error('Failed to create model:', error);
+                alert('Failed to create model. Please try again.');
+            }
+        }
+
+        function simulateTraining(modelId) {
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+
+                    // Update model to active
+                    const model = models.get(modelId);
+                    if (model) {
+                        model.status = 'active';
+                        model.accuracy = 0.75 + Math.random() * 0.2;
+                        displayModels(Array.from(models.values()));
+                    }
+                }
+
+                document.getElementById('trainingProgress').textContent = `${Math.round(progress)}%`;
+                document.getElementById('trainingStatus').textContent = progress >= 100 ? 'Completed' : 'Training...';
+            }, 1000);
+        }
+
+        async function generatePredictions() {
+            try {
+                // Mock prediction generation
+                const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
+                const newPredictions = symbols.map(symbol => ({
+                    symbol,
+                    currentPrice: 40000 + Math.random() * 10000,
+                    prediction: 40000 + Math.random() * 10000,
+                    confidence: 0.7 + Math.random() * 0.3,
+                    trend: Math.random() > 0.5 ? 'bullish' : 'bearish',
+                    timestamp: new Date()
+                }));
+
+                predictions = [...newPredictions, ...predictions.slice(0, 5)];
+                displayPredictions(predictions.slice(0, 6));
+
+                // Update stats
+                const todayCount = parseInt(document.getElementById('todayPredictions').textContent) + symbols.length;
+                document.getElementById('todayPredictions').textContent = todayCount;
+            } catch (error) {
+                console.error('Failed to generate predictions:', error);
+            }
+        }
+
+        async function refreshSentiment() {
+            await loadSentimentData();
+        }
+
+        function showBacktestModal() {
+            // This would show a detailed backtest configuration modal
+            alert('Backtest configuration modal would open here. For demo, running quick backtest...');
+            runQuickBacktest();
+        }
+
+        async function runQuickBacktest() {
+            const symbol = document.getElementById('backtestSymbol').value;
+            const strategy = document.getElementById('backtestStrategy').value;
+
+            try {
+                // Show loading state
+                document.getElementById('backtestResults').classList.add('hidden');
+
+                // Mock backtest execution
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Mock results
+                const results = {
+                    totalReturn: 15.3,
+                    sharpeRatio: 1.8,
+                    maxDrawdown: 8.2,
+                    winRate: 62.5
+                };
+
+                // Display results
+                document.getElementById('backtestReturn').textContent = `${results.totalReturn > 0 ? '+' : ''}${results.totalReturn}%`;
+                document.getElementById('backtestReturn').className = `font-bold ${results.totalReturn > 0 ? 'text-green-400' : 'text-red-400'}`;
+                document.getElementById('backtestSharpe').textContent = results.sharpeRatio.toFixed(2);
+                document.getElementById('backtestDrawdown').textContent = `${results.maxDrawdown}%`;
+                document.getElementById('backtestWinRate').textContent = `${results.winRate}%`;
+                document.getElementById('backtestResults').classList.remove('hidden');
+            } catch (error) {
+                console.error('Backtest failed:', error);
+                alert('Backtest failed. Please try again.');
+            }
+        }
+
+        function showTrainingModal() {
+            alert('Training queue modal would open here. For demo, adding model to queue...');
+
+            // Mock adding to training queue
+            const queueItem = {
+                id: Date.now(),
+                symbol: 'ADAUSDT',
+                timeframe: '1h',
+                type: 'price-prediction',
+                status: 'queued',
+                priority: 1
+            };
+
+            trainingQueue.push(queueItem);
+            updateTrainingQueue();
+        }
+
+        function updateTrainingQueue() {
+            const container = document.getElementById('trainingQueue');
+            container.innerHTML = '';
+
+            if (trainingQueue.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-4">No models in training queue</div>';
+                return;
+            }
+
+            trainingQueue.forEach(item => {
+                const queueItem = document.createElement('div');
+                queueItem.className = 'bg-gray-700 rounded p-3 flex items-center justify-between';
+                queueItem.innerHTML = `
+                    <div>
+                        <div class="font-semibold text-sm">${item.symbol} - ${item.timeframe}</div>
+                        <div class="text-xs text-gray-400">${item.type.replace('-', ' ')} • Priority: ${item.priority}</div>
+                    </div>
+                    <div class="text-xs px-2 py-1 bg-blue-500 bg-opacity-20 text-blue-400 rounded">
+                        ${item.status}
+                    </div>
+                `;
+                container.appendChild(queueItem);
+            });
+        }
+
+        // Initialize training queue display
+        updateTrainingQueue();
+    </script>
+</body>
+</html>
